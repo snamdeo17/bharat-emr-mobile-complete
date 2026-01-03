@@ -3,28 +3,33 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
   TouchableOpacity,
+  ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import {Picker} from '@react-native-picker/picker';
 import {Formik} from 'formik';
 import * as Yup from 'yup';
 import {colors} from '../../config/theme';
 import {useAuth} from '../../context/AuthContext';
 import api from '../../config/api';
+import {Picker} from '@react-native-picker/picker';
 
 const PatientSchema = Yup.object().shape({
   fullName: Yup.string().min(2).required('Name is required'),
+  age: Yup.number().min(0).max(120).required('Age is required'),
   gender: Yup.string().required('Gender is required'),
-  age: Yup.number().min(0).max(150).required('Age is required'),
   mobileNumber: Yup.string()
     .matches(/^[0-9]{10}$/, 'Invalid mobile number')
     .required('Mobile number is required'),
   email: Yup.string().email('Invalid email'),
   address: Yup.string(),
+  bloodGroup: Yup.string(),
+  allergies: Yup.string(),
+  chronicConditions: Yup.string(),
 });
 
 const AddPatientScreen = ({navigation}) => {
@@ -63,26 +68,28 @@ const AddPatientScreen = ({navigation}) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Add New Patient</Text>
-        <Text style={styles.subtitle}>
-          Enter patient details to create a new record
-        </Text>
-
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <Formik
           initialValues={{
             fullName: '',
-            gender: '',
             age: '',
+            gender: 'Male',
             mobileNumber: '',
             email: '',
             address: '',
+            bloodGroup: '',
+            allergies: '',
+            chronicConditions: '',
           }}
           validationSchema={PatientSchema}
           onSubmit={handleSubmit}>
           {({handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue}) => (
             <View>
+              <Text style={styles.sectionTitle}>Basic Information</Text>
+
               <InputField
                 label="Full Name *"
                 placeholder="Enter patient name"
@@ -92,47 +99,52 @@ const AddPatientScreen = ({navigation}) => {
                 error={touched.fullName && errors.fullName}
               />
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Gender *</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={values.gender}
-                    onValueChange={value => setFieldValue('gender', value)}>
-                    <Picker.Item label="Select Gender" value="" />
-                    <Picker.Item label="Male" value="Male" />
-                    <Picker.Item label="Female" value="Female" />
-                    <Picker.Item label="Other" value="Other" />
-                  </Picker>
+              <View style={styles.row}>
+                <View style={styles.halfInput}>
+                  <InputField
+                    label="Age *"
+                    placeholder="Age"
+                    keyboardType="number-pad"
+                    value={values.age}
+                    onChangeText={handleChange('age')}
+                    onBlur={handleBlur('age')}
+                    error={touched.age && errors.age}
+                  />
                 </View>
-                {touched.gender && errors.gender && (
-                  <Text style={styles.errorText}>{errors.gender}</Text>
-                )}
+                <View style={styles.halfInput}>
+                  <Text style={styles.label}>Gender *</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={values.gender}
+                      onValueChange={value => setFieldValue('gender', value)}>
+                      <Picker.Item label="Male" value="Male" />
+                      <Picker.Item label="Female" value="Female" />
+                      <Picker.Item label="Other" value="Other" />
+                    </Picker>
+                  </View>
+                </View>
               </View>
 
-              <InputField
-                label="Age *"
-                placeholder="Enter age"
-                keyboardType="number-pad"
-                value={values.age}
-                onChangeText={handleChange('age')}
-                onBlur={handleBlur('age')}
-                error={touched.age && errors.age}
-              />
+              <Text style={styles.label}>Mobile Number *</Text>
+              <View style={styles.phoneInputContainer}>
+                <Text style={styles.countryCode}>+91</Text>
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="10 digit mobile number"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={values.mobileNumber}
+                  onChangeText={handleChange('mobileNumber')}
+                  onBlur={handleBlur('mobileNumber')}
+                />
+              </View>
+              {touched.mobileNumber && errors.mobileNumber && (
+                <Text style={styles.errorText}>{errors.mobileNumber}</Text>
+              )}
 
               <InputField
-                label="Mobile Number *"
-                placeholder="10 digit number"
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={values.mobileNumber}
-                onChangeText={handleChange('mobileNumber')}
-                onBlur={handleBlur('mobileNumber')}
-                error={touched.mobileNumber && errors.mobileNumber}
-              />
-
-              <InputField
-                label="Email (Optional)"
-                placeholder="patient@example.com"
+                label="Email"
+                placeholder="email@example.com"
                 keyboardType="email-address"
                 value={values.email}
                 onChangeText={handleChange('email')}
@@ -141,37 +153,66 @@ const AddPatientScreen = ({navigation}) => {
               />
 
               <InputField
-                label="Address (Optional)"
-                placeholder="Enter address"
+                label="Address"
+                placeholder="Full address"
                 multiline
                 numberOfLines={3}
                 value={values.address}
                 onChangeText={handleChange('address')}
                 onBlur={handleBlur('address')}
-                error={touched.address && errors.address}
+              />
+
+              <Text style={styles.sectionTitle}>Medical Information</Text>
+
+              <InputField
+                label="Blood Group"
+                placeholder="e.g., O+, A+, B+, AB+"
+                value={values.bloodGroup}
+                onChangeText={handleChange('bloodGroup')}
+                onBlur={handleBlur('bloodGroup')}
+              />
+
+              <InputField
+                label="Allergies"
+                placeholder="Any known allergies"
+                multiline
+                numberOfLines={3}
+                value={values.allergies}
+                onChangeText={handleChange('allergies')}
+                onBlur={handleBlur('allergies')}
+              />
+
+              <InputField
+                label="Chronic Conditions"
+                placeholder="Any chronic health conditions"
+                multiline
+                numberOfLines={3}
+                value={values.chronicConditions}
+                onChangeText={handleChange('chronicConditions')}
+                onBlur={handleBlur('chronicConditions')}
               />
 
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
+                style={[styles.submitButton, loading && styles.buttonDisabled]}
                 onPress={handleSubmit}
                 disabled={loading}>
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.buttonText}>Add Patient</Text>
+                  <Text style={styles.submitButtonText}>Add Patient</Text>
                 )}
               </TouchableOpacity>
             </View>
           )}
         </Formik>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const InputField = ({label, error, ...props}) => (
   <View style={styles.inputContainer}>
-    <Text style={styles.label}>{label}</Text>
+    {label && <Text style={styles.label}>{label}</Text>}
     <TextInput style={styles.input} {...props} />
     {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
@@ -182,22 +223,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
+  scrollContent: {
     padding: 20,
   },
-  title: {
-    fontSize: 24,
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 24,
+    marginTop: 20,
+    marginBottom: 16,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
@@ -214,28 +251,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  halfInput: {
+    width: '48%',
+  },
   pickerContainer: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
     backgroundColor: '#fff',
   },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+  },
+  countryCode: {
+    fontSize: 16,
+    color: colors.text,
+    marginRight: 8,
+  },
+  phoneInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
   errorText: {
     fontSize: 12,
     color: colors.error,
     marginTop: 4,
   },
-  button: {
+  submitButton: {
     backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 24,
+    marginBottom: 40,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  buttonText: {
+  submitButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
