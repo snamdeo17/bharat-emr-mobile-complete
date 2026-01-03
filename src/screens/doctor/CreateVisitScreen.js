@@ -5,55 +5,54 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   Alert,
   ActivityIndicator,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors} from '../../config/theme';
 import api from '../../config/api';
+import {format} from 'date-fns';
 
 const CreateVisitScreen = ({navigation, route}) => {
-  const {patient} = route.params;
+  const {patientId} = route.params;
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    chiefComplaint: '',
-    presentIllness: '',
-    clinicalNotes: '',
-    diagnosis: '',
-    medicines: [],
-    tests: [],
-    followUpNotes: '',
-    followUpDate: '',
-  });
-
-  const [currentMedicine, setCurrentMedicine] = useState({
+  
+  // Visit Data
+  const [chiefComplaint, setChiefComplaint] = useState('');
+  const [presentIllness, setPresentIllness] = useState('');
+  const [clinicalNotes, setClinicalNotes] = useState('');
+  
+  // Medicines
+  const [medicines, setMedicines] = useState([]);
+  const [newMedicine, setNewMedicine] = useState({
     medicineName: '',
     dosage: '',
     frequency: '',
     duration: '',
     instructions: '',
   });
-
-  const [currentTest, setCurrentTest] = useState({
+  
+  // Tests
+  const [tests, setTests] = useState([]);
+  const [newTest, setNewTest] = useState({
     testName: '',
     instructions: '',
   });
+  
+  // Follow-up
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpNotes, setFollowUpNotes] = useState('');
 
   const addMedicine = () => {
-    if (!currentMedicine.medicineName || !currentMedicine.dosage) {
+    if (!newMedicine.medicineName || !newMedicine.dosage) {
       Alert.alert('Error', 'Please enter medicine name and dosage');
       return;
     }
-
-    setFormData({
-      ...formData,
-      medicines: [...formData.medicines, currentMedicine],
-    });
-
-    setCurrentMedicine({
+    setMedicines([...medicines, {...newMedicine}]);
+    setNewMedicine({
       medicineName: '',
       dosage: '',
       frequency: '',
@@ -63,67 +62,68 @@ const CreateVisitScreen = ({navigation, route}) => {
   };
 
   const removeMedicine = index => {
-    const updated = formData.medicines.filter((_, i) => i !== index);
-    setFormData({...formData, medicines: updated});
+    setMedicines(medicines.filter((_, i) => i !== index));
   };
 
   const addTest = () => {
-    if (!currentTest.testName) {
+    if (!newTest.testName) {
       Alert.alert('Error', 'Please enter test name');
       return;
     }
-
-    setFormData({
-      ...formData,
-      tests: [...formData.tests, currentTest],
-    });
-
-    setCurrentTest({
-      testName: '',
-      instructions: '',
-    });
+    setTests([...tests, {...newTest}]);
+    setNewTest({testName: '', instructions: ''});
   };
 
   const removeTest = index => {
-    const updated = formData.tests.filter((_, i) => i !== index);
-    setFormData({...formData, tests: updated});
+    setTests(tests.filter((_, i) => i !== index));
   };
 
   const handleCreateVisit = async () => {
-    if (!formData.chiefComplaint) {
-      Alert.alert('Error', 'Please enter chief complaint');
+    if (!chiefComplaint) {
+      Alert.alert('Error', 'Chief complaint is required');
       return;
     }
 
     setLoading(true);
     try {
       const visitData = {
-        patientId: patient.id,
-        chiefComplaint: formData.chiefComplaint,
-        presentIllness: formData.presentIllness,
-        clinicalNotes: formData.clinicalNotes,
-        diagnosis: formData.diagnosis,
-        medicines: formData.medicines,
-        tests: formData.tests,
+        patientId,
+        chiefComplaint,
+        presentIllness,
+        clinicalNotes,
+        medicines,
+        tests,
       };
 
-      // Add follow-up if provided
-      if (formData.followUpDate) {
+      // Add follow-up if date is provided
+      if (followUpDate) {
         visitData.followUp = {
-          scheduledDate: new Date(formData.followUpDate).toISOString(),
-          notes: formData.followUpNotes,
+          scheduledDate: followUpDate,
+          notes: followUpNotes,
         };
       }
 
       const response = await api.post('/visits', visitData);
 
       if (response.data.success) {
-        Alert.alert('Success', 'Visit created successfully', [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]);
+        Alert.alert(
+          'Success',
+          'Visit created successfully',
+          [
+            {
+              text: 'View Visit',
+              onPress: () => {
+                navigation.replace('VisitDetail', {
+                  visitId: response.data.data.id,
+                });
+              },
+            },
+            {
+              text: 'Back to Patient',
+              onPress: () => navigation.goBack(),
+            },
+          ],
+        );
       }
     } catch (error) {
       Alert.alert(
@@ -139,139 +139,114 @@ const CreateVisitScreen = ({navigation, route}) => {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView style={styles.scrollView}>
-        {/* Patient Info */}
-        <View style={styles.patientBanner}>
-          <Icon name="account" size={32} color={colors.primary} />
-          <View style={styles.patientInfo}>
-            <Text style={styles.patientName}>{patient.fullName}</Text>
-            <Text style={styles.patientDetails}>
-              {patient.gender} | {patient.age} years | {patient.patientId}
-            </Text>
-          </View>
-        </View>
-
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Visit Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Visit Details</Text>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Chief Complaint *</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="What is the main problem?"
+              multiline
+              numberOfLines={3}
+              value={chiefComplaint}
+              onChangeText={setChiefComplaint}
+            />
+          </View>
 
-          <Text style={styles.label}>Chief Complaint *</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Main reason for visit"
-            multiline
-            numberOfLines={2}
-            value={formData.chiefComplaint}
-            onChangeText={text =>
-              setFormData({...formData, chiefComplaint: text})
-            }
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Present Illness</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Details about current illness"
+              multiline
+              numberOfLines={3}
+              value={presentIllness}
+              onChangeText={setPresentIllness}
+            />
+          </View>
 
-          <Text style={styles.label}>History of Present Illness</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Detailed history"
-            multiline
-            numberOfLines={3}
-            value={formData.presentIllness}
-            onChangeText={text =>
-              setFormData({...formData, presentIllness: text})
-            }
-          />
-
-          <Text style={styles.label}>Clinical Examination</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Vitals, physical examination findings"
-            multiline
-            numberOfLines={3}
-            value={formData.clinicalNotes}
-            onChangeText={text =>
-              setFormData({...formData, clinicalNotes: text})
-            }
-          />
-
-          <Text style={styles.label}>Diagnosis</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter diagnosis"
-            value={formData.diagnosis}
-            onChangeText={text => setFormData({...formData, diagnosis: text})}
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Clinical Notes</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Examination findings, vitals, etc."
+              multiline
+              numberOfLines={4}
+              value={clinicalNotes}
+              onChangeText={setClinicalNotes}
+            />
+          </View>
         </View>
 
-        {/* Prescription - Medicines */}
+        {/* Medicines */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Prescription</Text>
-
-          {/* Medicine List */}
-          {formData.medicines.map((med, index) => (
+          
+          {medicines.map((medicine, index) => (
             <View key={index} style={styles.itemCard}>
               <View style={styles.itemHeader}>
-                <Text style={styles.itemName}>{med.medicineName}</Text>
+                <Text style={styles.itemTitle}>{medicine.medicineName}</Text>
                 <TouchableOpacity onPress={() => removeMedicine(index)}>
-                  <Icon name="close" size={20} color={colors.error} />
+                  <Icon name="close-circle" size={24} color={colors.error} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.itemDetail}>
-                {med.dosage} | {med.frequency} | {med.duration}
+                {medicine.dosage} • {medicine.frequency} • {medicine.duration}
               </Text>
-              {med.instructions && (
-                <Text style={styles.itemInstructions}>{med.instructions}</Text>
+              {medicine.instructions && (
+                <Text style={styles.itemInstructions}>{medicine.instructions}</Text>
               )}
             </View>
           ))}
 
-          {/* Add Medicine Form */}
-          <View style={styles.addForm}>
-            <Text style={styles.addFormTitle}>Add Medicine</Text>
-
+          <View style={styles.addItemContainer}>
             <TextInput
               style={styles.input}
-              placeholder="Medicine Name *"
-              value={currentMedicine.medicineName}
+              placeholder="Medicine name *"
+              value={newMedicine.medicineName}
               onChangeText={text =>
-                setCurrentMedicine({...currentMedicine, medicineName: text})
+                setNewMedicine({...newMedicine, medicineName: text})
               }
             />
-
             <View style={styles.row}>
               <TextInput
                 style={[styles.input, styles.halfInput]}
                 placeholder="Dosage *"
-                value={currentMedicine.dosage}
+                value={newMedicine.dosage}
                 onChangeText={text =>
-                  setCurrentMedicine({...currentMedicine, dosage: text})
+                  setNewMedicine({...newMedicine, dosage: text})
                 }
               />
               <TextInput
                 style={[styles.input, styles.halfInput]}
                 placeholder="Frequency"
-                value={currentMedicine.frequency}
+                value={newMedicine.frequency}
                 onChangeText={text =>
-                  setCurrentMedicine({...currentMedicine, frequency: text})
+                  setNewMedicine({...newMedicine, frequency: text})
                 }
               />
             </View>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Duration (e.g., 7 days)"
-              value={currentMedicine.duration}
-              onChangeText={text =>
-                setCurrentMedicine({...currentMedicine, duration: text})
-              }
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Instructions"
-              value={currentMedicine.instructions}
-              onChangeText={text =>
-                setCurrentMedicine({...currentMedicine, instructions: text})
-              }
-            />
-
+            <View style={styles.row}>
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder="Duration"
+                value={newMedicine.duration}
+                onChangeText={text =>
+                  setNewMedicine({...newMedicine, duration: text})
+                }
+              />
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder="Instructions"
+                value={newMedicine.instructions}
+                onChangeText={text =>
+                  setNewMedicine({...newMedicine, instructions: text})
+                }
+              />
+            </View>
             <TouchableOpacity style={styles.addButton} onPress={addMedicine}>
               <Icon name="plus" size={20} color={colors.primary} />
               <Text style={styles.addButtonText}>Add Medicine</Text>
@@ -281,15 +256,14 @@ const CreateVisitScreen = ({navigation, route}) => {
 
         {/* Tests */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Investigations</Text>
-
-          {/* Test List */}
-          {formData.tests.map((test, index) => (
+          <Text style={styles.sectionTitle}>Tests/Investigations</Text>
+          
+          {tests.map((test, index) => (
             <View key={index} style={styles.itemCard}>
               <View style={styles.itemHeader}>
-                <Text style={styles.itemName}>{test.testName}</Text>
+                <Text style={styles.itemTitle}>{test.testName}</Text>
                 <TouchableOpacity onPress={() => removeTest(index)}>
-                  <Icon name="close" size={20} color={colors.error} />
+                  <Icon name="close-circle" size={24} color={colors.error} />
                 </TouchableOpacity>
               </View>
               {test.instructions && (
@@ -298,28 +272,21 @@ const CreateVisitScreen = ({navigation, route}) => {
             </View>
           ))}
 
-          {/* Add Test Form */}
-          <View style={styles.addForm}>
-            <Text style={styles.addFormTitle}>Add Test</Text>
-
+          <View style={styles.addItemContainer}>
             <TextInput
               style={styles.input}
-              placeholder="Test Name *"
-              value={currentTest.testName}
-              onChangeText={text =>
-                setCurrentTest({...currentTest, testName: text})
-              }
+              placeholder="Test name *"
+              value={newTest.testName}
+              onChangeText={text => setNewTest({...newTest, testName: text})}
             />
-
             <TextInput
               style={styles.input}
               placeholder="Instructions (optional)"
-              value={currentTest.instructions}
+              value={newTest.instructions}
               onChangeText={text =>
-                setCurrentTest({...currentTest, instructions: text})
+                setNewTest({...newTest, instructions: text})
               }
             />
-
             <TouchableOpacity style={styles.addButton} onPress={addTest}>
               <Icon name="plus" size={20} color={colors.primary} />
               <Text style={styles.addButtonText}>Add Test</Text>
@@ -330,26 +297,28 @@ const CreateVisitScreen = ({navigation, route}) => {
         {/* Follow-up */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Follow-up (Optional)</Text>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Follow-up Date</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="YYYY-MM-DD (e.g., 2026-01-15)"
+              value={followUpDate}
+              onChangeText={setFollowUpDate}
+            />
+          </View>
 
-          <Text style={styles.label}>Follow-up Date</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="YYYY-MM-DD HH:MM"
-            value={formData.followUpDate}
-            onChangeText={text =>
-              setFormData({...formData, followUpDate: text})
-            }
-          />
-
-          <Text style={styles.label}>Notes</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Follow-up notes"
-            value={formData.followUpNotes}
-            onChangeText={text =>
-              setFormData({...formData, followUpNotes: text})
-            }
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Follow-up Notes</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Notes for follow-up"
+              multiline
+              numberOfLines={2}
+              value={followUpNotes}
+              onChangeText={setFollowUpNotes}
+            />
+          </View>
         </View>
 
         {/* Submit Button */}
@@ -361,7 +330,7 @@ const CreateVisitScreen = ({navigation, route}) => {
             <ActivityIndicator color="#fff" />
           ) : (
             <>
-              <Icon name="content-save" size={20} color="#fff" />
+              <Icon name="check" size={20} color="#fff" />
               <Text style={styles.submitButtonText}>Create Visit</Text>
             </>
           )}
@@ -376,40 +345,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollView: {
-    flex: 1,
-  },
-  patientBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  patientInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  patientName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  patientDetails: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 2,
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
   section: {
-    padding: 16,
-    backgroundColor: '#fff',
-    marginTop: 8,
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.text,
+    marginBottom: 12,
+  },
+  inputContainer: {
     marginBottom: 16,
   },
   label: {
@@ -417,20 +366,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
-    marginTop: 12,
   },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     fontSize: 16,
     color: colors.text,
     backgroundColor: '#fff',
+    marginBottom: 12,
   },
   textArea: {
-    minHeight: 80,
+    height: 80,
     textAlignVertical: 'top',
   },
   row: {
@@ -441,17 +390,20 @@ const styles = StyleSheet.create({
     width: '48%',
   },
   itemCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#fff',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
   },
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
   },
-  itemName: {
+  itemTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
@@ -459,36 +411,28 @@ const styles = StyleSheet.create({
   itemDetail: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 4,
   },
   itemInstructions: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textSecondary,
-    fontStyle: 'italic',
     marginTop: 4,
+    fontStyle: 'italic',
   },
-  addForm: {
-    backgroundColor: colors.surface,
-    padding: 16,
+  addItemContainer: {
+    backgroundColor: '#f9fafb',
+    padding: 12,
     borderRadius: 8,
-    marginTop: 12,
-  },
-  addFormTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
+    marginTop: 8,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
     paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 12,
     borderWidth: 1,
     borderColor: colors.primary,
+    borderRadius: 8,
+    borderStyle: 'dashed',
   },
   addButtonText: {
     color: colors.primary,
@@ -498,13 +442,12 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    margin: 16,
     borderRadius: 8,
-    elevation: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
