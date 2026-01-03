@@ -1,12 +1,11 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Base URL - Update this for production
-export const API_BASE_URL = __DEV__ 
-  ? 'http://10.0.2.2:8080/api' // Android Emulator
+// API Base URL - Update this with your deployed backend URL
+const API_BASE_URL = __DEV__
+  ? 'http://10.0.2.2:8080/api' // Android emulator
   : 'https://api.bharatemr.com/api'; // Production
 
-// Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -15,31 +14,34 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - Add JWT token
+// Request interceptor to add JWT token
 api.interceptors.request.use(
-  async (config) => {
-    const token = await AsyncStorage.getItem('jwt_token');
+  async config => {
+    const token = await AsyncStorage.getItem('jwtToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
+  error => {
     return Promise.reject(error);
-  }
+  },
 );
 
-// Response interceptor - Handle errors
+// Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
+  response => response,
+  async error => {
     if (error.response?.status === 401) {
-      // Token expired - logout user
-      await AsyncStorage.removeItem('jwt_token');
-      await AsyncStorage.removeItem('user_data');
+      // Token expired or invalid
+      await AsyncStorage.removeItem('jwtToken');
+      await AsyncStorage.removeItem('userType');
+      await AsyncStorage.removeItem('userId');
+      // Redirect to login
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;
+export {API_BASE_URL};

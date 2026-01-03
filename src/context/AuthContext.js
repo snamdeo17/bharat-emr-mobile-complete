@@ -1,54 +1,93 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, {createContext, useState, useContext, useEffect} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../config/api';
 
 const AuthContext = createContext({});
 
-export const AuthProvider = ({ children }) => {
+export const AuthProvider = ({children}) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userType, setUserType] = useState(null);
 
   useEffect(() => {
-    checkAuthStatus();
+    loadStoredAuth();
   }, []);
 
-  const checkAuthStatus = async () => {
+  const loadStoredAuth = async () => {
     try {
-      const token = await AsyncStorage.getItem('jwt_token');
-      const userData = await AsyncStorage.getItem('user_data');
-      
-      if (token && userData) {
-        setUser(JSON.parse(userData));
-        setIsAuthenticated(true);
+      const token = await AsyncStorage.getItem('jwtToken');
+      const storedUserType = await AsyncStorage.getItem('userType');
+      const userId = await AsyncStorage.getItem('userId');
+      const userName = await AsyncStorage.getItem('userName');
+
+      if (token && storedUserType && userId) {
+        setUser({userId, userName});
+        setUserType(storedUserType);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      console.error('Error loading stored auth:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const login = async (token, userData) => {
+  const login = async (mobileNumber, otp, type) => {
     try {
-      await AsyncStorage.setItem('jwt_token', token);
-      await AsyncStorage.setItem('user_data', JSON.stringify(userData));
-      setUser(userData);
-      setIsAuthenticated(true);
+      const endpoint = type === 'DOCTOR' ? '/doctors/login' : '/patients/login';
+      const response = await api.post(endpoint, {mobileNumber, otp});
+
+      const {token, userId, userName, userType: responseUserType} = response.data.data;
+
+      await AsyncStorage.setItem('jwtToken', token);
+      await AsyncStorage.setItem('userType', responseUserType);
+      await AsyncStorage.setItem('userId', userId);
+      await AsyncStorage.setItem('userName', userName);
+
+      setUser({userId, userName});
+      setUserType(responseUserType);
+
+      return {success: true};
     } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Login failed',
+      };
     }
   };
 
   const logout = async () => {
     try {
-      await AsyncStorage.removeItem('jwt_token');
-      await AsyncStorage.removeItem('user_data');
+      await AsyncStorage.removeItem('jwtToken');
+      await AsyncStorage.removeItem('userType');
+      await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('userName');
       setUser(null);
-      setIsAuthenticated(false);
+      setUserType(null);
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Error during logout:', error);
+    }
+  };
+
+  const register = async (registrationData) => {
+    try {
+      const response = await api.post('/doctors/register', registrationData);
+
+      const {token, userId, userName, userType: responseUserType} = response.data.data;
+
+      await AsyncStorage.setItem('jwtToken', token);
+      await AsyncStorage.setItem('userType', responseUserType);
+      await AsyncStorage.setItem('userId', userId);
+      await AsyncStorage.setItem('userName', userName);
+
+      setUser({userId, userName});
+      setUserType(responseUserType);
+
+      return {success: true};
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Registration failed',
+      };
     }
   };
 
@@ -56,13 +95,13 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
+        userType,
         loading,
-        isAuthenticated,
         login,
         logout,
-        checkAuthStatus,
-      }}
-    >
+        register,
+        isAuthenticated: !!user,
+      }}>
       {children}
     </AuthContext.Provider>
   );
