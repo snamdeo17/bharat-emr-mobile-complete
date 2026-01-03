@@ -12,14 +12,14 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors} from '../../config/theme';
 import {useAuth} from '../../context/AuthContext';
 import api from '../../config/api';
-import {format, isToday, isPast} from 'date-fns';
+import {format, isPast, isToday, isTomorrow} from 'date-fns';
 
-const FollowUpListScreen = () => {
+const FollowUpListScreen = ({navigation}) => {
   const {user} = useAuth();
   const [followUps, setFollowUps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState('all'); // all, today, upcoming, overdue
+  const [filter, setFilter] = useState('all'); // all, today, upcoming, completed
 
   useEffect(() => {
     fetchFollowUps();
@@ -43,62 +43,75 @@ const FollowUpListScreen = () => {
   };
 
   const getFilteredFollowUps = () => {
-    let filtered = followUps;
-    const now = new Date();
-
-    switch (filter) {
-      case 'today':
-        filtered = followUps.filter(f => isToday(new Date(f.scheduledDate)));
-        break;
-      case 'upcoming':
-        filtered = followUps.filter(
-          f => new Date(f.scheduledDate) > now && f.status === 'SCHEDULED',
-        );
-        break;
-      case 'overdue':
-        filtered = followUps.filter(
-          f => isPast(new Date(f.scheduledDate)) && f.status === 'SCHEDULED',
-        );
-        break;
-      default:
-        break;
-    }
-
-    return filtered;
+    return followUps.filter(followUp => {
+      const followUpDate = new Date(followUp.scheduledDate);
+      switch (filter) {
+        case 'today':
+          return isToday(followUpDate) && followUp.status === 'SCHEDULED';
+        case 'upcoming':
+          return !isPast(followUpDate) && followUp.status === 'SCHEDULED';
+        case 'completed':
+          return followUp.status === 'COMPLETED';
+        default:
+          return true;
+      }
+    });
   };
 
-  const renderFollowUpItem = ({item}) => {
-    const date = new Date(item.scheduledDate);
-    const isOverdue = isPast(date) && item.status === 'SCHEDULED';
-    const isTodayItem = isToday(date);
+  const getFollowUpStatus = followUp => {
+    const followUpDate = new Date(followUp.scheduledDate);
+    if (followUp.status === 'COMPLETED') return 'completed';
+    if (followUp.status === 'CANCELLED') return 'cancelled';
+    if (isPast(followUpDate)) return 'overdue';
+    if (isToday(followUpDate)) return 'today';
+    if (isTomorrow(followUpDate)) return 'tomorrow';
+    return 'upcoming';
+  };
+
+  const getStatusColor = status => {
+    switch (status) {
+      case 'completed':
+        return colors.success;
+      case 'cancelled':
+        return colors.textSecondary;
+      case 'overdue':
+        return colors.error;
+      case 'today':
+        return colors.warning;
+      default:
+        return colors.primary;
+    }
+  };
+
+  const renderFollowUp = ({item}) => {
+    const status = getFollowUpStatus(item);
+    const statusColor = getStatusColor(status);
 
     return (
-      <TouchableOpacity style={styles.followUpCard}>
-        <View style={styles.followUpHeader}>
-          <View style={styles.followUpInfo}>
-            <Text style={styles.patientName}>{item.patientName}</Text>
-            <View style={styles.dateContainer}>
-              <Icon name="calendar" size={16} color={colors.textSecondary} />
-              <Text style={styles.dateText}>
-                {format(date, 'dd MMM yyyy, hh:mm a')}
-              </Text>
-            </View>
-          </View>
-          <View
-            style={[
-              styles.statusBadge,
-              isOverdue && styles.statusOverdue,
-              isTodayItem && styles.statusToday,
-            ]}>
-            <Text style={styles.statusText}>
-              {isOverdue ? 'Overdue' : isTodayItem ? 'Today' : item.status}
+      <TouchableOpacity
+        style={styles.followUpCard}
+        onPress={() =>
+          navigation.navigate('PatientDetail', {patient: {patientId: item.patientId}})
+        }>
+        <View style={[styles.statusIndicator, {backgroundColor: statusColor}]} />
+        <View style={styles.followUpContent}>
+          <Text style={styles.patientName}>{item.patientName}</Text>
+          <Text style={styles.followUpDate}>
+            <Icon name="calendar" size={14} />{' '}
+            {format(new Date(item.scheduledDate), 'dd MMM yyyy')}
+          </Text>
+          {item.notes && <Text style={styles.notes}>{item.notes}</Text>}
+          <View style={styles.statusBadge}>
+            <Text style={[styles.statusText, {color: statusColor}]}>
+              {status.toUpperCase()}
             </Text>
           </View>
         </View>
-        {item.notes && <Text style={styles.notes}>{item.notes}</Text>}
       </TouchableOpacity>
     );
   };
+
+  const filteredFollowUps = getFilteredFollowUps();
 
   if (loading) {
     return (
@@ -108,68 +121,36 @@ const FollowUpListScreen = () => {
     );
   }
 
-  const filteredFollowUps = getFilteredFollowUps();
-
   return (
     <View style={styles.container}>
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
-          onPress={() => setFilter('all')}>
-          <Text
-            style={[
-              styles.filterText,
-              filter === 'all' && styles.filterTextActive,
-            ]}>
-            All
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'today' && styles.filterTabActive]}
-          onPress={() => setFilter('today')}>
-          <Text
-            style={[
-              styles.filterText,
-              filter === 'today' && styles.filterTextActive,
-            ]}>
-            Today
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            filter === 'upcoming' && styles.filterTabActive,
-          ]}
-          onPress={() => setFilter('upcoming')}>
-          <Text
-            style={[
-              styles.filterText,
-              filter === 'upcoming' && styles.filterTextActive,
-            ]}>
-            Upcoming
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            filter === 'overdue' && styles.filterTabActive,
-          ]}
-          onPress={() => setFilter('overdue')}>
-          <Text
-            style={[
-              styles.filterText,
-              filter === 'overdue' && styles.filterTextActive,
-            ]}>
-            Overdue
-          </Text>
-        </TouchableOpacity>
+        <FilterTab
+          label="All"
+          active={filter === 'all'}
+          onPress={() => setFilter('all')}
+        />
+        <FilterTab
+          label="Today"
+          active={filter === 'today'}
+          onPress={() => setFilter('today')}
+        />
+        <FilterTab
+          label="Upcoming"
+          active={filter === 'upcoming'}
+          onPress={() => setFilter('upcoming')}
+        />
+        <FilterTab
+          label="Completed"
+          active={filter === 'completed'}
+          onPress={() => setFilter('completed')}
+        />
       </View>
 
       {/* Follow-up List */}
       <FlatList
         data={filteredFollowUps}
-        renderItem={renderFollowUpItem}
+        renderItem={renderFollowUp}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
@@ -177,7 +158,7 @@ const FollowUpListScreen = () => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Icon name="calendar-clock" size={64} color={colors.textSecondary} />
+            <Icon name="calendar-blank" size={64} color={colors.textSecondary} />
             <Text style={styles.emptyText}>No follow-ups found</Text>
           </View>
         }
@@ -185,6 +166,16 @@ const FollowUpListScreen = () => {
     </View>
   );
 };
+
+const FilterTab = ({label, active, onPress}) => (
+  <TouchableOpacity
+    style={[styles.filterTab, active && styles.filterTabActive]}
+    onPress={onPress}>
+    <Text style={[styles.filterText, active && styles.filterTextActive]}>
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -199,15 +190,14 @@ const styles = StyleSheet.create({
   filterContainer: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 8,
     elevation: 2,
   },
   filterTab: {
     flex: 1,
     paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: 8,
   },
   filterTabActive: {
     backgroundColor: colors.primary,
@@ -224,56 +214,42 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   followUpCard: {
+    flexDirection: 'row',
     backgroundColor: '#fff',
-    padding: 16,
     borderRadius: 8,
     marginBottom: 12,
-    elevation: 2,
+    elevation: 1,
+    overflow: 'hidden',
   },
-  followUpHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  statusIndicator: {
+    width: 4,
   },
-  followUpInfo: {
+  followUpContent: {
     flex: 1,
+    padding: 16,
   },
   patientName: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateText: {
+  followUpDate: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginLeft: 4,
-  },
-  statusBadge: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusToday: {
-    backgroundColor: colors.warning,
-  },
-  statusOverdue: {
-    backgroundColor: colors.error,
-  },
-  statusText: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
+    marginBottom: 8,
   },
   notes: {
     fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 8,
+    color: colors.text,
+    marginBottom: 8,
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
