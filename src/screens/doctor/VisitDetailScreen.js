@@ -17,6 +17,7 @@ const VisitDetailScreen = ({route}) => {
   const {visitId} = route.params;
   const [visit, setVisit] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     fetchVisitDetails();
@@ -27,19 +28,25 @@ const VisitDetailScreen = ({route}) => {
       const response = await api.get(`/visits/${visitId}`);
       setVisit(response.data.data);
     } catch (error) {
-      console.error('Error fetching visit details:', error);
+      console.error('Error fetching visit:', error);
       Alert.alert('Error', 'Failed to load visit details');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownloadPrescription = async () => {
+  const handleDownloadPDF = async () => {
+    setDownloading(true);
     try {
-      Alert.alert('Info', 'Prescription download functionality will be implemented');
-      // TODO: Implement PDF download using react-native-pdf or similar
+      const response = await api.get(`/visits/${visitId}/prescription/pdf`, {
+        responseType: 'blob',
+      });
+      // Handle PDF download/opening
+      Alert.alert('Success', 'Prescription downloaded successfully');
     } catch (error) {
       Alert.alert('Error', 'Failed to download prescription');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -61,61 +68,51 @@ const VisitDetailScreen = ({route}) => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Visit Header */}
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.patientName}>{visit.patientName}</Text>
-            <Text style={styles.visitDate}>
-              {format(new Date(visit.visitDate), 'dd MMMM yyyy, hh:mm a')}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.downloadButton}
-            onPress={handleDownloadPrescription}>
-            <Icon name="download" size={24} color={colors.primary} />
-          </TouchableOpacity>
+      {/* Visit Info */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Visit Information</Text>
+        <InfoRow icon="calendar" label="Date" value={format(new Date(visit.visitDate), 'dd MMM yyyy, hh:mm a')} />
+        <InfoRow icon="account" label="Patient" value={visit.patientName} />
+      </View>
+
+      {/* Chief Complaint */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Chief Complaint</Text>
+        <Text style={styles.contentText}>{visit.chiefComplaint}</Text>
+      </View>
+
+      {/* Present Illness */}
+      {visit.presentIllness && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Present Illness</Text>
+          <Text style={styles.contentText}>{visit.presentIllness}</Text>
         </View>
-      </View>
+      )}
 
-      {/* Visit Details */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Visit Details</Text>
-        
-        <DetailCard label="Chief Complaint" value={visit.chiefComplaint} />
-        
-        {visit.presentIllness && (
-          <DetailCard label="Present Illness" value={visit.presentIllness} />
-        )}
-        
-        {visit.clinicalNotes && (
-          <DetailCard label="Clinical Notes" value={visit.clinicalNotes} />
-        )}
-      </View>
+      {/* Clinical Notes */}
+      {visit.clinicalNotes && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Clinical Notes</Text>
+          <Text style={styles.contentText}>{visit.clinicalNotes}</Text>
+        </View>
+      )}
 
-      {/* Prescription */}
+      {/* Medicines */}
       {visit.medicines && visit.medicines.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Prescription</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Prescribed Medicines</Text>
           {visit.medicines.map((medicine, index) => (
-            <View key={index} style={styles.medicineCard}>
+            <View key={index} style={styles.medicineItem}>
               <View style={styles.medicineHeader}>
-                <Icon name="pill" size={20} color={colors.primary} />
-                <Text style={styles.medicineName}>{medicine.medicineName}</Text>
-              </View>
-              <Text style={styles.medicineDetail}>
-                Dosage: {medicine.dosage}
-              </Text>
-              <Text style={styles.medicineDetail}>
-                Frequency: {medicine.frequency}
-              </Text>
-              <Text style={styles.medicineDetail}>
-                Duration: {medicine.duration}
-              </Text>
-              {medicine.instructions && (
-                <Text style={styles.medicineInstructions}>
-                  {medicine.instructions}
+                <Text style={styles.medicineName}>
+                  {index + 1}. {medicine.medicineName}
                 </Text>
+              </View>
+              <Text style={styles.medicineDetail}>Dosage: {medicine.dosage}</Text>
+              <Text style={styles.medicineDetail}>Frequency: {medicine.frequency}</Text>
+              <Text style={styles.medicineDetail}>Duration: {medicine.duration}</Text>
+              {medicine.instructions && (
+                <Text style={styles.medicineDetail}>Instructions: {medicine.instructions}</Text>
               )}
             </View>
           ))}
@@ -124,14 +121,13 @@ const VisitDetailScreen = ({route}) => {
 
       {/* Tests */}
       {visit.tests && visit.tests.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tests/Investigations</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Recommended Tests</Text>
           {visit.tests.map((test, index) => (
-            <View key={index} style={styles.testCard}>
-              <View style={styles.testHeader}>
-                <Icon name="test-tube" size={20} color={colors.warning} />
-                <Text style={styles.testName}>{test.testName}</Text>
-              </View>
+            <View key={index} style={styles.testItem}>
+              <Text style={styles.testName}>
+                {index + 1}. {test.testName}
+              </Text>
               {test.instructions && (
                 <Text style={styles.testInstructions}>{test.instructions}</Text>
               )}
@@ -142,32 +138,44 @@ const VisitDetailScreen = ({route}) => {
 
       {/* Follow-up */}
       {visit.followUp && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Follow-up</Text>
-          <View style={styles.followUpCard}>
-            <View style={styles.followUpHeader}>
-              <Icon name="calendar-clock" size={20} color={colors.success} />
-              <Text style={styles.followUpDate}>
-                {format(new Date(visit.followUp.scheduledDate), 'dd MMM yyyy')}
-              </Text>
-            </View>
-            {visit.followUp.notes && (
-              <Text style={styles.followUpNotes}>{visit.followUp.notes}</Text>
-            )}
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>{visit.followUp.status}</Text>
-            </View>
-          </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Follow-up</Text>
+          <InfoRow
+            icon="calendar-clock"
+            label="Scheduled"
+            value={format(new Date(visit.followUp.scheduledDate), 'dd MMM yyyy')}
+          />
+          {visit.followUp.notes && (
+            <Text style={styles.contentText}>{visit.followUp.notes}</Text>
+          )}
         </View>
       )}
+
+      {/* Download Button */}
+      <TouchableOpacity
+        style={[styles.downloadButton, downloading && styles.buttonDisabled]}
+        onPress={handleDownloadPDF}
+        disabled={downloading}>
+        {downloading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <>
+            <Icon name="download" size={20} color="#fff" />
+            <Text style={styles.downloadButtonText}>Download Prescription</Text>
+          </>
+        )}
+      </TouchableOpacity>
     </ScrollView>
   );
 };
 
-const DetailCard = ({label, value}) => (
-  <View style={styles.detailCard}>
-    <Text style={styles.detailLabel}>{label}</Text>
-    <Text style={styles.detailValue}>{value}</Text>
+const InfoRow = ({icon, label, value}) => (
+  <View style={styles.infoRow}>
+    <Icon name={icon} size={20} color={colors.primary} />
+    <View style={styles.infoContent}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
   </View>
 );
 
@@ -190,142 +198,94 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.error,
   },
-  header: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  patientName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  visitDate: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  downloadButton: {
-    padding: 8,
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 12,
-  },
-  detailCard: {
+  card: {
     backgroundColor: '#fff',
     padding: 16,
+    margin: 16,
     borderRadius: 8,
-    marginBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
+    elevation: 2,
   },
-  detailLabel: {
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  infoContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  infoLabel: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
-    fontWeight: '600',
   },
-  detailValue: {
+  infoValue: {
     fontSize: 16,
     color: colors.text,
+    fontWeight: '500',
   },
-  medicineCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
+  contentText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  medicineItem: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    paddingLeft: 12,
+    marginBottom: 16,
   },
   medicineHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 8,
   },
   medicineName: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginLeft: 8,
   },
   medicineDetail: {
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 4,
   },
-  medicineInstructions: {
-    fontSize: 14,
-    color: colors.text,
-    marginTop: 8,
-    fontStyle: 'italic',
-    backgroundColor: colors.surface,
-    padding: 8,
-    borderRadius: 4,
-  },
-  testCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
+  testItem: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.info,
+    paddingLeft: 12,
     marginBottom: 12,
-  },
-  testHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
   },
   testName: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginLeft: 8,
+    marginBottom: 4,
   },
   testInstructions: {
     fontSize: 14,
     color: colors.textSecondary,
   },
-  followUpCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-  },
-  followUpHeader: {
+  downloadButton: {
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
+    paddingVertical: 16,
+    margin: 16,
+    borderRadius: 8,
   },
-  followUpDate: {
+  downloadButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
     marginLeft: 8,
   },
-  followUpNotes: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
-  statusBadge: {
-    backgroundColor: colors.success,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '600',
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
 

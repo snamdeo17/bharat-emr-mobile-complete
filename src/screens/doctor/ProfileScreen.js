@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors} from '../../config/theme';
@@ -15,17 +15,17 @@ import api from '../../config/api';
 
 const ProfileScreen = () => {
   const {user, logout} = useAuth();
-  const [doctor, setDoctor] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDoctorProfile();
+    fetchProfile();
   }, []);
 
-  const fetchDoctorProfile = async () => {
+  const fetchProfile = async () => {
     try {
       const response = await api.get(`/doctors/profile/${user.userId}`);
-      setDoctor(response.data.data);
+      setProfile(response.data.data);
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -34,20 +34,14 @@ const ProfileScreen = () => {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Logout',
-          onPress: async () => {
-            await logout();
-          },
-          style: 'destructive',
-        },
-      ],
-    );
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      {text: 'Cancel', style: 'cancel'},
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => logout(),
+      },
+    ]);
   };
 
   if (loading) {
@@ -63,71 +57,66 @@ const ProfileScreen = () => {
       {/* Profile Header */}
       <View style={styles.header}>
         <View style={styles.avatarLarge}>
-          <Text style={styles.avatarText}>
-            {doctor?.fullName?.charAt(0).toUpperCase()}
-          </Text>
+          <Icon name="doctor" size={48} color={colors.primary} />
         </View>
-        <Text style={styles.doctorName}>{doctor?.fullName}</Text>
-        <Text style={styles.doctorId}>ID: {doctor?.doctorId}</Text>
-        <Text style={styles.specialization}>{doctor?.specialization}</Text>
+        <Text style={styles.name}>{profile?.fullName}</Text>
+        <Text style={styles.doctorId}>ID: {profile?.doctorId}</Text>
       </View>
 
-      {/* Profile Information */}
+      {/* Professional Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Professional Information</Text>
-        
-        <InfoCard
+        <InfoItem
+          icon="stethoscope"
+          label="Specialization"
+          value={profile?.specialization}
+        />
+        <InfoItem
           icon="school"
           label="Qualification"
-          value={doctor?.qualification}
+          value={profile?.qualification}
         />
-        <InfoCard
+        <InfoItem
           icon="briefcase"
           label="Experience"
-          value={`${doctor?.yearsOfExperience} years`}
+          value={`${profile?.yearsOfExperience} years`}
         />
-        <InfoCard
+        <InfoItem
           icon="certificate"
           label="Registration Number"
-          value={doctor?.medicalRegistrationNumber}
+          value={profile?.medicalRegistrationNumber}
         />
       </View>
 
-      {/* Contact Information */}
+      {/* Contact Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Contact Information</Text>
-        
-        <InfoCard icon="phone" label="Mobile" value={doctor?.mobileNumber} />
-        {doctor?.email && (
-          <InfoCard icon="email" label="Email" value={doctor.email} />
+        <InfoItem icon="phone" label="Mobile" value={profile?.mobileNumber} />
+        {profile?.email && (
+          <InfoItem icon="email" label="Email" value={profile?.email} />
         )}
       </View>
 
-      {/* Clinic Information */}
+      {/* Clinic Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Clinic Information</Text>
-        
-        <InfoCard
-          icon="hospital-building"
-          label="Clinic Name"
-          value={doctor?.clinicName}
-        />
-        <InfoCard
+        <InfoItem icon="hospital-building" label="Clinic Name" value={profile?.clinicName} />
+        <InfoItem
           icon="map-marker"
           label="Address"
-          value={doctor?.clinicAddress}
+          value={profile?.clinicAddress}
         />
       </View>
 
       {/* Actions */}
-      <View style={styles.section}>
+      <View style={styles.actionsSection}>
         <TouchableOpacity style={styles.actionButton}>
           <Icon name="pencil" size={20} color={colors.primary} />
           <Text style={styles.actionButtonText}>Edit Profile</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton}>
-          <Icon name="lock-reset" size={20} color={colors.textSecondary} />
+          <Icon name="lock" size={20} color={colors.primary} />
           <Text style={styles.actionButtonText}>Change Password</Text>
         </TouchableOpacity>
 
@@ -150,8 +139,8 @@ const ProfileScreen = () => {
   );
 };
 
-const InfoCard = ({icon, label, value}) => (
-  <View style={styles.infoCard}>
+const InfoItem = ({icon, label, value}) => (
+  <View style={styles.infoItem}>
     <Icon name={icon} size={20} color={colors.primary} />
     <View style={styles.infoContent}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -171,7 +160,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#fff',
     alignItems: 'center',
     paddingVertical: 30,
   },
@@ -179,87 +168,78 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  avatarText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: colors.primary,
-  },
-  doctorName: {
+  name: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
+    marginBottom: 4,
   },
   doctorId: {
     fontSize: 14,
-    color: '#fff',
-    opacity: 0.8,
-    marginTop: 4,
-  },
-  specialization: {
-    fontSize: 16,
-    color: '#fff',
-    marginTop: 8,
+    color: colors.textSecondary,
   },
   section: {
-    padding: 20,
+    backgroundColor: '#fff',
+    marginTop: 12,
+    padding: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  infoCard: {
+  infoItem: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-    elevation: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   infoContent: {
-    flex: 1,
     marginLeft: 12,
+    flex: 1,
   },
   infoLabel: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
   },
   infoValue: {
     fontSize: 16,
     color: colors.text,
-    fontWeight: '500',
+    marginTop: 2,
+  },
+  actionsSection: {
+    backgroundColor: '#fff',
+    marginTop: 12,
+    padding: 16,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   actionButtonText: {
     fontSize: 16,
     color: colors.text,
     marginLeft: 12,
-    fontWeight: '500',
   },
   logoutButton: {
-    borderWidth: 1,
-    borderColor: colors.error,
+    borderBottomWidth: 0,
   },
   logoutText: {
     color: colors.error,
   },
   footer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 30,
   },
   footerText: {
     fontSize: 12,
