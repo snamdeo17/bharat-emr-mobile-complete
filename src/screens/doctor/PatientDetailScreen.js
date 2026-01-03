@@ -20,12 +20,12 @@ const PatientDetailScreen = ({navigation, route}) => {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchPatientVisits();
+    fetchVisits();
   }, []);
 
-  const fetchPatientVisits = async () => {
+  const fetchVisits = async () => {
     try {
-      const response = await api.get(`/visits/patient/${patient.patientId}`);
+      const response = await api.get(`/patients/${patient.patientId}/visits`);
       setVisits(response.data.data || []);
     } catch (error) {
       console.error('Error fetching visits:', error);
@@ -37,7 +37,7 @@ const PatientDetailScreen = ({navigation, route}) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchPatientVisits();
+    fetchVisits();
   };
 
   return (
@@ -46,123 +46,113 @@ const PatientDetailScreen = ({navigation, route}) => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
-        {/* Patient Header */}
-        <View style={styles.header}>
+        {/* Patient Info Card */}
+        <View style={styles.patientCard}>
           <View style={styles.avatar}>
             <Icon name="account" size={48} color="#fff" />
           </View>
           <Text style={styles.patientName}>{patient.fullName}</Text>
           <Text style={styles.patientId}>ID: {patient.patientId}</Text>
-        </View>
 
-        {/* Patient Info Cards */}
-        <View style={styles.infoContainer}>
-          <InfoCard icon="phone" label="Mobile" value={patient.mobileNumber} />
-          <InfoCard
-            icon="email"
-            label="Email"
-            value={patient.email || 'Not provided'}
-          />
-          <InfoCard icon="calendar" label="Age" value={`${patient.age} years`} />
-          <InfoCard icon="gender-male-female" label="Gender" value={patient.gender} />
-          {patient.bloodGroup && (
-            <InfoCard icon="water" label="Blood Group" value={patient.bloodGroup} />
+          <View style={styles.infoGrid}>
+            <InfoItem icon="gender-male-female" label="Gender" value={patient.gender} />
+            <InfoItem icon="cake-variant" label="Age" value={`${patient.age} yrs`} />
+            <InfoItem
+              icon="water"
+              label="Blood"
+              value={patient.bloodGroup || 'N/A'}
+            />
+            <InfoItem
+              icon="phone"
+              label="Contact"
+              value={patient.mobileNumber}
+            />
+          </View>
+
+          {patient.allergies && (
+            <View style={styles.alertBox}>
+              <Icon name="alert" size={20} color={colors.error} />
+              <Text style={styles.alertText}>Allergies: {patient.allergies}</Text>
+            </View>
+          )}
+
+          {patient.chronicConditions && (
+            <View style={[styles.alertBox, {backgroundColor: '#fff3cd'}]}>
+              <Icon name="clipboard-pulse" size={20} color={colors.warning} />
+              <Text style={[styles.alertText, {color: colors.warning}]}>
+                Conditions: {patient.chronicConditions}
+              </Text>
+            </View>
           )}
         </View>
 
-        {/* Address */}
-        {patient.address && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Address</Text>
-            <View style={styles.card}>
-              <Text style={styles.cardText}>{patient.address}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Medical History */}
-        {patient.medicalHistory && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Medical History</Text>
-            <View style={styles.card}>
-              <Text style={styles.cardText}>{patient.medicalHistory}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Allergies */}
-        {patient.allergies && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Allergies</Text>
-            <View style={[styles.card, styles.warningCard]}>
-              <Icon name="alert" size={20} color={colors.warning} />
-              <Text style={[styles.cardText, styles.warningText]}>
-                {patient.allergies}
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* Action Buttons */}
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() =>
+              navigation.navigate('CreateVisit', {patient})
+            }>
+            <Icon name="note-plus" size={24} color="#fff" />
+            <Text style={styles.actionButtonText}>Create Visit</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Visit History */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Visit History</Text>
-            <Text style={styles.visitCount}>{visits.length} visits</Text>
-          </View>
-
+          <Text style={styles.sectionTitle}>Visit History</Text>
           {loading ? (
             <ActivityIndicator size="large" color={colors.primary} />
           ) : visits.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Icon name="calendar-blank" size={48} color={colors.textSecondary} />
+              <Icon name="clipboard-text-off" size={48} color={colors.textSecondary} />
               <Text style={styles.emptyText}>No visits yet</Text>
             </View>
           ) : (
             visits.map(visit => (
-              <TouchableOpacity
+              <VisitCard
                 key={visit.id}
-                style={styles.visitCard}
+                visit={visit}
                 onPress={() =>
                   navigation.navigate('VisitDetail', {visitId: visit.id})
-                }>
-                <View style={styles.visitHeader}>
-                  <Text style={styles.visitDate}>
-                    {format(new Date(visit.visitDate), 'dd MMM yyyy')}
-                  </Text>
-                  <Icon name="chevron-right" size={24} color={colors.textSecondary} />
-                </View>
-                <Text style={styles.complaint} numberOfLines={2}>
-                  {visit.chiefComplaint}
-                </Text>
-                {visit.diagnosis && (
-                  <Text style={styles.diagnosis} numberOfLines={1}>
-                    Diagnosis: {visit.diagnosis}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                }
+              />
             ))
           )}
         </View>
       </ScrollView>
-
-      {/* Create Visit FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('CreateVisit', {patient})}>
-        <Icon name="plus" size={28} color="#fff" />
-      </TouchableOpacity>
     </View>
   );
 };
 
-const InfoCard = ({icon, label, value}) => (
-  <View style={styles.infoCard}>
+const InfoItem = ({icon, label, value}) => (
+  <View style={styles.infoItem}>
     <Icon name={icon} size={20} color={colors.primary} />
-    <View style={styles.infoContent}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
+    <Text style={styles.infoLabel}>{label}</Text>
+    <Text style={styles.infoValue}>{value}</Text>
   </View>
+);
+
+const VisitCard = ({visit, onPress}) => (
+  <TouchableOpacity style={styles.visitCard} onPress={onPress}>
+    <View style={styles.visitHeader}>
+      <View>
+        <Text style={styles.visitDate}>
+          {format(new Date(visit.visitDate), 'dd MMM yyyy, hh:mm a')}
+        </Text>
+        <Text style={styles.visitComplaint} numberOfLines={2}>
+          {visit.chiefComplaint}
+        </Text>
+      </View>
+      <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+    </View>
+    {visit.prescriptionGenerated && (
+      <View style={styles.prescriptionBadge}>
+        <Icon name="file-document" size={14} color={colors.success} />
+        <Text style={styles.prescriptionText}>Prescription</Text>
+      </View>
+    )}
+  </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
@@ -170,16 +160,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    backgroundColor: colors.primary,
-    padding: 24,
+  patientCard: {
+    backgroundColor: '#fff',
+    padding: 20,
     alignItems: 'center',
   },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
@@ -187,80 +177,76 @@ const styles = StyleSheet.create({
   patientName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    color: colors.text,
   },
   patientId: {
     fontSize: 14,
-    color: '#fff',
-    opacity: 0.8,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
-  infoContainer: {
-    padding: 16,
-  },
-  infoCard: {
+  infoGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-    elevation: 1,
+    flexWrap: 'wrap',
+    marginTop: 20,
+    width: '100%',
   },
-  infoContent: {
-    marginLeft: 12,
-    flex: 1,
+  infoItem: {
+    width: '50%',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   infoLabel: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginTop: 4,
   },
   infoValue: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    marginTop: 2,
+  },
+  alertBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 16,
+    width: '100%',
+  },
+  alertText: {
+    fontSize: 14,
+    color: colors.error,
+    marginLeft: 8,
+    flex: 1,
+  },
+  actionsContainer: {
+    padding: 16,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 8,
+    elevation: 2,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   section: {
     padding: 16,
-    paddingTop: 0,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.text,
     marginBottom: 12,
-  },
-  visitCount: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  card: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    elevation: 1,
-  },
-  cardText: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  warningCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#fff3cd',
-    borderLeftWidth: 4,
-    borderLeftColor: colors.warning,
-  },
-  warningText: {
-    marginLeft: 8,
-    flex: 1,
   },
   visitCard: {
     backgroundColor: '#fff',
@@ -273,42 +259,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   visitDate: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
-  },
-  complaint: {
-    fontSize: 14,
     color: colors.text,
-    marginBottom: 4,
   },
-  diagnosis: {
-    fontSize: 12,
+  visitComplaint: {
+    fontSize: 14,
     color: colors.textSecondary,
+    marginTop: 4,
+  },
+  prescriptionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  prescriptionText: {
+    fontSize: 12,
+    color: colors.success,
+    marginLeft: 4,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
-    padding: 40,
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
   emptyText: {
     fontSize: 16,
     color: colors.textSecondary,
     marginTop: 12,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
   },
 });
 
