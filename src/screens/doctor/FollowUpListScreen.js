@@ -5,21 +5,21 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  RefreshControl,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors} from '../../config/theme';
 import {useAuth} from '../../context/AuthContext';
 import api from '../../config/api';
-import {format, isPast, isToday} from 'date-fns';
+import {format, isToday, isTomorrow, isPast} from 'date-fns';
 
-const FollowUpListScreen = ({navigation}) => {
+const FollowUpListScreen = () => {
   const {user} = useAuth();
   const [followUps, setFollowUps] = useState([]);
-  const [filter, setFilter] = useState('upcoming'); // upcoming, today, all
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState('upcoming'); // upcoming, today, all
 
   useEffect(() => {
     fetchFollowUps();
@@ -43,102 +43,77 @@ const FollowUpListScreen = ({navigation}) => {
   };
 
   const getFilteredFollowUps = () => {
-    const now = new Date();
-
-    switch (filter) {
-      case 'today':
-        return followUps.filter(f => isToday(new Date(f.scheduledDate)));
-      case 'upcoming':
-        return followUps.filter(
-          f =>
-            new Date(f.scheduledDate) > now && f.status === 'SCHEDULED',
-        );
-      case 'all':
-        return followUps;
-      default:
-        return followUps;
+    if (filter === 'today') {
+      return followUps.filter(f => isToday(new Date(f.scheduledDate)));
+    } else if (filter === 'upcoming') {
+      return followUps.filter(
+        f => !isPast(new Date(f.scheduledDate)) && f.status === 'SCHEDULED',
+      );
     }
+    return followUps;
   };
 
-  const handleComplete = async followUpId => {
-    try {
-      await api.post(`/follow-ups/${followUpId}/complete`);
-      fetchFollowUps();
-    } catch (error) {
-      console.error('Error completing follow-up:', error);
-    }
+  const getDateBadge = scheduledDate => {
+    const date = new Date(scheduledDate);
+    if (isToday(date)) return {text: 'Today', color: colors.success};
+    if (isTomorrow(date)) return {text: 'Tomorrow', color: colors.warning};
+    if (isPast(date)) return {text: 'Overdue', color: colors.error};
+    return {text: format(date, 'dd MMM'), color: colors.primary};
   };
 
   const renderFollowUpCard = ({item}) => {
-    const scheduledDate = new Date(item.scheduledDate);
-    const isOverdue = isPast(scheduledDate) && item.status === 'SCHEDULED';
+    const badge = getDateBadge(item.scheduledDate);
 
     return (
-      <View
-        style={[
-          styles.followUpCard,
-          isOverdue && styles.overdueCard,
-          item.status === 'COMPLETED' && styles.completedCard,
-        ]}>
+      <View style={styles.followUpCard}>
         <View style={styles.cardHeader}>
           <View style={styles.patientInfo}>
+            <Icon name="account" size={20} color={colors.text} />
             <Text style={styles.patientName}>{item.patientName}</Text>
-            <Text style={styles.date}>
-              {format(scheduledDate, 'dd MMM yyyy, hh:mm a')}
-            </Text>
           </View>
-          <View
-            style={[
-              styles.statusBadge,
-              item.status === 'COMPLETED' && styles.completedBadge,
-              isOverdue && styles.overdueBadge,
-            ]}>
-            <Text
-              style={[
-                styles.statusText,
-                item.status === 'COMPLETED' && styles.completedText,
-                isOverdue && styles.overdueText,
-              ]}>
-              {item.status === 'COMPLETED'
-                ? 'Completed'
-                : isOverdue
-                ? 'Overdue'
-                : 'Scheduled'}
-            </Text>
+          <View style={[styles.badge, {backgroundColor: badge.color}]}>
+            <Text style={styles.badgeText}>{badge.text}</Text>
           </View>
         </View>
 
-        {item.notes && (
-          <Text style={styles.notes} numberOfLines={2}>
-            {item.notes}
-          </Text>
-        )}
+        <View style={styles.cardContent}>
+          <View style={styles.infoRow}>
+            <Icon name="calendar" size={16} color={colors.textSecondary} />
+            <Text style={styles.infoText}>
+              {format(new Date(item.scheduledDate), 'dd MMM yyyy, hh:mm a')}
+            </Text>
+          </View>
 
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.actionLink}
-            onPress={() =>
-              navigation.navigate('PatientDetail', {
-                patient: {patientId: item.patientId},
-              })
-            }>
-            <Icon name="account" size={16} color={colors.primary} />
-            <Text style={styles.actionLinkText}>View Patient</Text>
-          </TouchableOpacity>
-
-          {item.status === 'SCHEDULED' && (
-            <TouchableOpacity
-              style={styles.actionLink}
-              onPress={() => handleComplete(item.id)}>
-              <Icon name="check-circle" size={16} color={colors.success} />
-              <Text style={[styles.actionLinkText, {color: colors.success}]}>
-                Mark Complete
+          {item.notes && (
+            <View style={styles.infoRow}>
+              <Icon name="note-text" size={16} color={colors.textSecondary} />
+              <Text style={styles.infoText} numberOfLines={2}>
+                {item.notes}
               </Text>
-            </TouchableOpacity>
+            </View>
           )}
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View style={[styles.statusBadge, getStatusStyle(item.status)]}>
+            <Text style={styles.statusText}>{item.status}</Text>
+          </View>
         </View>
       </View>
     );
+  };
+
+  const getStatusStyle = status => {
+    switch (status) {
+      case 'SCHEDULED':
+        return {backgroundColor: colors.info};
+      case 'COMPLETED':
+        return {backgroundColor: colors.success};
+      case 'CANCELLED':
+        return {backgroundColor: colors.error};
+      default:
+        return {backgroundColor: colors.textSecondary};
+    }
   };
 
   if (loading) {
@@ -149,6 +124,8 @@ const FollowUpListScreen = ({navigation}) => {
     );
   }
 
+  const filteredFollowUps = getFilteredFollowUps();
+
   return (
     <View style={styles.container}>
       {/* Filter Tabs */}
@@ -156,13 +133,13 @@ const FollowUpListScreen = ({navigation}) => {
         <TouchableOpacity
           style={[
             styles.filterTab,
-            filter === 'today' && styles.activeFilterTab,
+            filter === 'today' && styles.filterTabActive,
           ]}
           onPress={() => setFilter('today')}>
           <Text
             style={[
               styles.filterText,
-              filter === 'today' && styles.activeFilterText,
+              filter === 'today' && styles.filterTextActive,
             ]}>
             Today
           </Text>
@@ -171,13 +148,13 @@ const FollowUpListScreen = ({navigation}) => {
         <TouchableOpacity
           style={[
             styles.filterTab,
-            filter === 'upcoming' && styles.activeFilterTab,
+            filter === 'upcoming' && styles.filterTabActive,
           ]}
           onPress={() => setFilter('upcoming')}>
           <Text
             style={[
               styles.filterText,
-              filter === 'upcoming' && styles.activeFilterText,
+              filter === 'upcoming' && styles.filterTextActive,
             ]}>
             Upcoming
           </Text>
@@ -186,13 +163,13 @@ const FollowUpListScreen = ({navigation}) => {
         <TouchableOpacity
           style={[
             styles.filterTab,
-            filter === 'all' && styles.activeFilterTab,
+            filter === 'all' && styles.filterTabActive,
           ]}
           onPress={() => setFilter('all')}>
           <Text
             style={[
               styles.filterText,
-              filter === 'all' && styles.activeFilterText,
+              filter === 'all' && styles.filterTextActive,
             ]}>
             All
           </Text>
@@ -201,19 +178,23 @@ const FollowUpListScreen = ({navigation}) => {
 
       {/* Follow-up List */}
       <FlatList
-        data={getFilteredFollowUps()}
+        data={filteredFollowUps}
         renderItem={renderFollowUpCard}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        ListEmptyComponent={
+        ListEmptyComponent=(
           <View style={styles.emptyContainer}>
-            <Icon name="calendar-clock" size={64} color={colors.textSecondary} />
-            <Text style={styles.emptyText}>No follow-ups</Text>
+            <Icon
+              name="calendar-blank"
+              size={64}
+              color={colors.textSecondary}
+            />
+            <Text style={styles.emptyText}>No follow-ups found</Text>
           </View>
-        }
+        )
       />
     </View>
   );
@@ -232,7 +213,7 @@ const styles = StyleSheet.create({
   filterContainer: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    padding: 8,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -240,10 +221,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: 8,
     marginHorizontal: 4,
   },
-  activeFilterTab: {
+  filterTabActive: {
     backgroundColor: colors.primary,
   },
   filterText: {
@@ -251,7 +232,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
-  activeFilterText: {
+  filterTextActive: {
     color: '#fff',
   },
   listContainer: {
@@ -259,84 +240,65 @@ const styles = StyleSheet.create({
   },
   followUpCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 16,
     marginBottom: 12,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  overdueCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: colors.error,
-  },
-  completedCard: {
-    opacity: 0.7,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   patientInfo: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   patientName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    marginLeft: 8,
   },
-  date: {
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  cardContent: {
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoText: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 4,
+    marginLeft: 8,
+    flex: 1,
+  },
+  cardFooter: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 12,
   },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: colors.surface,
-  },
-  completedBadge: {
-    backgroundColor: '#d4edda',
-  },
-  overdueBadge: {
-    backgroundColor: '#f8d7da',
+    alignSelf: 'flex-start',
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  completedText: {
-    color: colors.success,
-  },
-  overdueText: {
-    color: colors.error,
-  },
-  notes: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 12,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  actionLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  actionLinkText: {
-    fontSize: 14,
-    color: colors.primary,
-    marginLeft: 4,
+    color: '#fff',
     fontWeight: '600',
   },
   emptyContainer: {
