@@ -14,11 +14,11 @@ import {colors} from '../../config/theme';
 import api from '../../config/api';
 import {format} from 'date-fns';
 
-const VisitDetailScreen = ({route}) => {
+const VisitDetailScreen = ({navigation, route}) => {
   const {visitId} = route.params;
   const [visit, setVisit] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     fetchVisitDetails();
@@ -29,35 +29,44 @@ const VisitDetailScreen = ({route}) => {
       const response = await api.get(`/visits/${visitId}`);
       setVisit(response.data.data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to fetch visit details');
+      console.error('Error fetching visit details:', error);
+      Alert.alert('Error', 'Failed to load visit details');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDownloadPrescription = async () => {
-    setDownloading(true);
+    setDownloadingPdf(true);
     try {
+      // First generate PDF if not already generated
+      await api.post(`/visits/${visitId}/prescription/generate-pdf`);
+
+      // Then get download URL
       const response = await api.get(`/visits/${visitId}/prescription/pdf`, {
         responseType: 'blob',
       });
-      
-      // Handle PDF download/share
-      Alert.alert('Success', 'Prescription downloaded');
+
+      // Share or save PDF
+      Alert.alert('Success', 'Prescription downloaded successfully');
     } catch (error) {
       Alert.alert('Error', 'Failed to download prescription');
     } finally {
-      setDownloading(false);
+      setDownloadingPdf(false);
     }
   };
 
   const handleSharePrescription = async () => {
     try {
       await Share.share({
-        message: `Prescription for visit on ${format(new Date(visit.visitDate), 'dd MMM yyyy')}`,
+        message: `Prescription for visit on ${format(
+          new Date(visit.visitDate),
+          'dd MMM yyyy',
+        )}`,
+        title: 'Share Prescription',
       });
     } catch (error) {
-      console.error('Share error:', error);
+      console.error('Error sharing:', error);
     }
   };
 
@@ -79,126 +88,139 @@ const VisitDetailScreen = ({route}) => {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView>
         {/* Visit Header */}
         <View style={styles.header}>
-          <Text style={styles.date}>
-            {format(new Date(visit.visitDate), 'EEEE, dd MMMM yyyy')}
-          </Text>
           <Text style={styles.patientName}>{visit.patientName}</Text>
+          <Text style={styles.visitDate}>
+            {format(new Date(visit.visitDate), 'dd MMM yyyy, hh:mm a')}
+          </Text>
         </View>
 
         {/* Chief Complaint */}
-        <Section title="Chief Complaint" icon="alert-circle">
-          <Text style={styles.content}>{visit.chiefComplaint}</Text>
-        </Section>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Chief Complaint</Text>
+          <Text style={styles.contentText}>{visit.chiefComplaint}</Text>
+        </View>
 
         {/* Present Illness */}
         {visit.presentIllness && (
-          <Section title="Present Illness" icon="file-document">
-            <Text style={styles.content}>{visit.presentIllness}</Text>
-          </Section>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>History of Present Illness</Text>
+            <Text style={styles.contentText}>{visit.presentIllness}</Text>
+          </View>
         )}
 
         {/* Clinical Notes */}
         {visit.clinicalNotes && (
-          <Section title="Clinical Notes" icon="stethoscope">
-            <Text style={styles.content}>{visit.clinicalNotes}</Text>
-          </Section>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Clinical Examination</Text>
+            <Text style={styles.contentText}>{visit.clinicalNotes}</Text>
+          </View>
         )}
 
         {/* Diagnosis */}
         {visit.diagnosis && (
-          <Section title="Diagnosis" icon="medical-bag">
-            <Text style={styles.content}>{visit.diagnosis}</Text>
-          </Section>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Diagnosis</Text>
+            <Text style={styles.contentText}>{visit.diagnosis}</Text>
+          </View>
         )}
 
         {/* Medicines */}
         {visit.medicines && visit.medicines.length > 0 && (
-          <Section title="Prescription" icon="pill">
-            {visit.medicines.map((medicine, index) => (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Prescription</Text>
+            {visit.medicines.map((med, index) => (
               <View key={index} style={styles.medicineCard}>
-                <Text style={styles.medicineName}>{medicine.medicineName}</Text>
-                <Text style={styles.medicineDetail}>
-                  {medicine.dosage} | {medicine.frequency}
+                <Text style={styles.medicineName}>
+                  {index + 1}. {med.medicineName}
                 </Text>
-                <Text style={styles.medicineDetail}>Duration: {medicine.duration}</Text>
-                {medicine.instructions && (
-                  <Text style={styles.instructions}>{medicine.instructions}</Text>
+                <Text style={styles.medicineDetail}>
+                  Dosage: {med.dosage}
+                </Text>
+                <Text style={styles.medicineDetail}>
+                  Frequency: {med.frequency}
+                </Text>
+                <Text style={styles.medicineDetail}>
+                  Duration: {med.duration}
+                </Text>
+                {med.instructions && (
+                  <Text style={styles.medicineInstructions}>
+                    {med.instructions}
+                  </Text>
                 )}
               </View>
             ))}
-          </Section>
+          </View>
         )}
 
         {/* Tests */}
         {visit.tests && visit.tests.length > 0 && (
-          <Section title="Laboratory Tests" icon="flask">
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Investigations</Text>
             {visit.tests.map((test, index) => (
               <View key={index} style={styles.testCard}>
-                <Text style={styles.testName}>{test.testName}</Text>
+                <Text style={styles.testName}>
+                  {index + 1}. {test.testName}
+                </Text>
                 {test.instructions && (
                   <Text style={styles.testInstructions}>{test.instructions}</Text>
                 )}
               </View>
             ))}
-          </Section>
-        )}
-
-        {/* Advice */}
-        {visit.advice && (
-          <Section title="Advice" icon="lightbulb">
-            <Text style={styles.content}>{visit.advice}</Text>
-          </Section>
+          </View>
         )}
 
         {/* Follow-up */}
         {visit.followUp && (
-          <Section title="Follow-up" icon="calendar-clock">
-            <Text style={styles.followUpDate}>
-              {format(new Date(visit.followUp.scheduledDate), 'dd MMM yyyy')}
-            </Text>
-            {visit.followUp.notes && (
-              <Text style={styles.content}>{visit.followUp.notes}</Text>
-            )}
-          </Section>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Follow-up</Text>
+            <View style={styles.followUpCard}>
+              <Icon name="calendar-clock" size={24} color={colors.primary} />
+              <View style={styles.followUpInfo}>
+                <Text style={styles.followUpDate}>
+                  {format(new Date(visit.followUp.scheduledDate), 'dd MMM yyyy')}
+                </Text>
+                {visit.followUp.notes && (
+                  <Text style={styles.followUpNotes}>
+                    {visit.followUp.notes}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
         )}
       </ScrollView>
 
       {/* Action Buttons */}
       <View style={styles.actionBar}>
         <TouchableOpacity
-          style={styles.actionButton}
+          style={[styles.actionButton, styles.shareButton]}
+          onPress={handleSharePrescription}>
+          <Icon name="share-variant" size={20} color={colors.primary} />
+          <Text style={styles.actionButtonText}>Share</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.downloadButton]}
           onPress={handleDownloadPrescription}
-          disabled={downloading}>
-          {downloading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
+          disabled={downloadingPdf}>
+          {downloadingPdf ? (
+            <ActivityIndicator color="#fff" />
           ) : (
             <>
-              <Icon name="download" size={24} color={colors.primary} />
-              <Text style={styles.actionText}>Download</Text>
+              <Icon name="download" size={20} color="#fff" />
+              <Text style={[styles.actionButtonText, {color: '#fff'}]}>
+                Download PDF
+              </Text>
             </>
           )}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={handleSharePrescription}>
-          <Icon name="share-variant" size={24} color={colors.primary} />
-          <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 };
-
-const Section = ({title, icon, children}) => (
-  <View style={styles.section}>
-    <View style={styles.sectionHeader}>
-      <Icon name={icon} size={20} color={colors.primary} />
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
-    {children}
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: {
@@ -217,68 +239,59 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: colors.textSecondary,
-  },
-  scrollContent: {
-    paddingBottom: 80,
+    color: colors.error,
   },
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#fff',
     padding: 20,
-  },
-  date: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   patientName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
+  },
+  visitDate: {
+    fontSize: 14,
+    color: colors.textSecondary,
     marginTop: 4,
   },
   section: {
     backgroundColor: '#fff',
-    padding: 16,
+    padding: 20,
     marginTop: 8,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
     marginBottom: 12,
   },
-  sectionTitle: {
+  contentText: {
     fontSize: 16,
-    fontWeight: '600',
     color: colors.text,
-    marginLeft: 8,
-  },
-  content: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
+    lineHeight: 24,
   },
   medicineCard: {
     backgroundColor: colors.surface,
     padding: 12,
     borderRadius: 8,
-    marginBottom: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
+    marginBottom: 12,
   },
   medicineName: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   medicineDetail: {
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 2,
   },
-  instructions: {
-    fontSize: 12,
+  medicineInstructions: {
+    fontSize: 13,
     color: colors.textSecondary,
     fontStyle: 'italic',
     marginTop: 4,
@@ -287,7 +300,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     padding: 12,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   testName: {
     fontSize: 16,
@@ -295,27 +308,37 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   testInstructions: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  followUpCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: 12,
+    borderRadius: 8,
+  },
+  followUpInfo: {
+    marginLeft: 12,
+    flex: 1,
   },
   followUpDate: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 8,
+    color: colors.text,
+  },
+  followUpNotes: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
-    backgroundColor: '#fff',
     padding: 16,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    elevation: 4,
   },
   actionButton: {
     flex: 1,
@@ -323,11 +346,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    marginHorizontal: 8,
-    backgroundColor: colors.surface,
     borderRadius: 8,
+    marginHorizontal: 4,
   },
-  actionText: {
+  shareButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  downloadButton: {
+    backgroundColor: colors.primary,
+  },
+  actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
