@@ -18,9 +18,9 @@ const PatientListScreen = ({navigation}) => {
   const {user} = useAuth();
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchPatients();
@@ -50,11 +50,12 @@ const PatientListScreen = ({navigation}) => {
       return;
     }
 
+    const query = searchQuery.toLowerCase();
     const filtered = patients.filter(
       patient =>
-        patient.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        patient.mobileNumber.includes(searchQuery) ||
-        patient.patientId.toLowerCase().includes(searchQuery.toLowerCase()),
+        patient.fullName?.toLowerCase().includes(query) ||
+        patient.mobileNumber?.includes(query) ||
+        patient.patientId?.toLowerCase().includes(query),
     );
     setFilteredPatients(filtered);
   };
@@ -75,26 +76,17 @@ const PatientListScreen = ({navigation}) => {
         <View style={styles.patientInfo}>
           <Text style={styles.patientName}>{item.fullName}</Text>
           <Text style={styles.patientId}>ID: {item.patientId}</Text>
-          <View style={styles.patientMeta}>
-            <Icon name="phone" size={14} color={colors.textSecondary} />
-            <Text style={styles.metaText}>{item.mobileNumber}</Text>
-          </View>
+          <Text style={styles.patientDetails}>
+            {item.gender} | {item.age} years
+          </Text>
         </View>
-        <View style={styles.patientStats}>
-          <Text style={styles.statsValue}>{item.age}</Text>
-          <Text style={styles.statsLabel}>Years</Text>
-        </View>
+        <Icon name="chevron-right" size={24} color={colors.textSecondary} />
       </View>
       <View style={styles.patientFooter}>
-        <View style={styles.tag}>
-          <Icon name="gender-male-female" size={14} color={colors.primary} />
-          <Text style={styles.tagText}>{item.gender}</Text>
+        <View style={styles.infoItem}>
+          <Icon name="phone" size={16} color={colors.textSecondary} />
+          <Text style={styles.infoText}>{item.mobileNumber}</Text>
         </View>
-        {item.lastVisit && (
-          <Text style={styles.lastVisit}>
-            Last visit: {new Date(item.lastVisit).toLocaleDateString()}
-          </Text>
-        )}
       </View>
     </TouchableOpacity>
   );
@@ -111,16 +103,16 @@ const PatientListScreen = ({navigation}) => {
     <View style={styles.container}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Icon name="magnify" size={24} color={colors.textSecondary} />
+        <Icon name="magnify" size={20} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search patients by name, phone, or ID"
+          placeholder="Search patients..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        {searchQuery !== '' && (
+        {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close" size={24} color={colors.textSecondary} />
+            <Icon name="close" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -129,17 +121,21 @@ const PatientListScreen = ({navigation}) => {
       <FlatList
         data={filteredPatients}
         renderItem={renderPatientCard}
-        keyExtractor={item => item.patientId}
-        contentContainerStyle={styles.listContent}
+        keyExtractor={item => item.id?.toString() || item.patientId}
+        contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Icon name="account-off" size={64} color={colors.textSecondary} />
-            <Text style={styles.emptyText}>No patients found</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery ? 'No patients found' : 'No patients yet'}
+            </Text>
             <Text style={styles.emptySubtext}>
-              {searchQuery ? 'Try a different search' : 'Add your first patient'}
+              {searchQuery
+                ? 'Try a different search'
+                : 'Add your first patient'}
             </Text>
           </View>
         }
@@ -149,7 +145,7 @@ const PatientListScreen = ({navigation}) => {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('AddPatient')}>
-        <Icon name="plus" size={28} color="#fff" />
+        <Icon name="plus" size={24} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -170,18 +166,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     margin: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderRadius: 8,
     elevation: 2,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     fontSize: 16,
     color: colors.text,
   },
-  listContent: {
+  listContainer: {
     padding: 16,
     paddingTop: 0,
   },
@@ -189,7 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
@@ -198,7 +194,7 @@ const styles = StyleSheet.create({
   },
   patientHeader: {
     flexDirection: 'row',
-    marginBottom: 12,
+    alignItems: 'center',
   },
   avatar: {
     width: 56,
@@ -211,69 +207,38 @@ const styles = StyleSheet.create({
   patientInfo: {
     flex: 1,
     marginLeft: 12,
-    justifyContent: 'center',
   },
   patientName: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
   },
   patientId: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginTop: 2,
   },
-  patientMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metaText: {
-    fontSize: 12,
+  patientDetails: {
+    fontSize: 14,
     color: colors.textSecondary,
-    marginLeft: 4,
-  },
-  patientStats: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statsValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.primary,
-  },
-  statsLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    marginTop: 4,
   },
   patientFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 12,
   },
-  tag: {
+  infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
   },
-  tagText: {
-    fontSize: 12,
-    color: colors.primary,
-    marginLeft: 4,
-    fontWeight: '600',
-  },
-  lastVisit: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  infoText: {
+    fontSize: 14,
+    color: colors.text,
+    marginLeft: 8,
   },
   emptyContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
@@ -302,7 +267,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
   },
 });
