@@ -14,27 +14,21 @@ import api from '../../config/api';
 import {format} from 'date-fns';
 
 const PatientDetailScreen = ({navigation, route}) => {
-  const {patientId} = route.params;
-  const [patient, setPatient] = useState(null);
+  const {patient} = route.params;
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchPatientDetails();
+    fetchPatientVisits();
   }, []);
 
-  const fetchPatientDetails = async () => {
+  const fetchPatientVisits = async () => {
     try {
-      const [patientRes, visitsRes] = await Promise.all([
-        api.get(`/patients/profile/${patientId}`),
-        api.get(`/patients/${patientId}/visits`),
-      ]);
-
-      setPatient(patientRes.data.data);
-      setVisits(visitsRes.data.data || []);
+      const response = await api.get(`/patients/${patient.patientId}/visits`);
+      setVisits(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching patient details:', error);
+      console.error('Error fetching visits:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -43,16 +37,8 @@ const PatientDetailScreen = ({navigation, route}) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchPatientDetails();
+    fetchPatientVisits();
   };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
 
   return (
     <ScrollView
@@ -60,107 +46,103 @@ const PatientDetailScreen = ({navigation, route}) => {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
-      {/* Patient Header */}
-      <View style={styles.header}>
+      {/* Patient Info Card */}
+      <View style={styles.infoCard}>
         <View style={styles.avatarLarge}>
-          <Text style={styles.avatarTextLarge}>
-            {patient?.fullName.charAt(0).toUpperCase()}
-          </Text>
+          <Icon name="account" size={48} color={colors.primary} />
         </View>
-        <Text style={styles.patientName}>{patient?.fullName}</Text>
-        <Text style={styles.patientId}>ID: {patient?.patientId}</Text>
-      </View>
-
-      {/* Patient Info Cards */}
-      <View style={styles.section}>
-        <InfoCard icon="gender-male-female" label="Gender" value={patient?.gender} />
-        <InfoCard icon="calendar" label="Age" value={`${patient?.age} years`} />
-        <InfoCard icon="water" label="Blood Group" value={patient?.bloodGroup || 'N/A'} />
-        <InfoCard icon="phone" label="Mobile" value={patient?.mobileNumber} />
-      </View>
-
-      {/* Contact Info */}
-      {patient?.email && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Contact Information</Text>
-          <InfoRow icon="email" label="Email" value={patient.email} />
-          {patient.address && (
-            <InfoRow icon="map-marker" label="Address" value={patient.address} />
-          )}
-          {patient.emergencyContact && (
-            <InfoRow
-              icon="phone-alert"
-              label="Emergency"
-              value={patient.emergencyContact}
-            />
+        <Text style={styles.patientName}>{patient.fullName}</Text>
+        
+        <View style={styles.infoGrid}>
+          <InfoItem icon="gender-male-female" label="Gender" value={patient.gender} />
+          <InfoItem icon="calendar" label="Age" value={`${patient.age} years`} />
+          <InfoItem icon="phone" label="Mobile" value={patient.mobileNumber} />
+          {patient.email && (
+            <InfoItem icon="email" label="Email" value={patient.email} />
           )}
         </View>
-      )}
 
-      {/* Visit History */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Visit History</Text>
-          <Text style={styles.visitCount}>{visits.length} visits</Text>
-        </View>
-
-        {visits.length === 0 ? (
-          <Text style={styles.emptyText}>No visits yet</Text>
-        ) : (
-          visits.map(visit => (
-            <TouchableOpacity
-              key={visit.id}
-              style={styles.visitItem}
-              onPress={() =>
-                navigation.navigate('VisitDetail', {visitId: visit.id})
-              }>
-              <View style={styles.visitHeader}>
-                <Text style={styles.visitDate}>
-                  {format(new Date(visit.visitDate), 'dd MMM yyyy')}
-                </Text>
-                <Icon
-                  name="chevron-right"
-                  size={20}
-                  color={colors.textSecondary}
-                />
-              </View>
-              <Text style={styles.visitComplaint} numberOfLines={2}>
-                {visit.chiefComplaint}
-              </Text>
-            </TouchableOpacity>
-          ))
+        {patient.address && (
+          <View style={styles.addressContainer}>
+            <Icon name="map-marker" size={16} color={colors.textSecondary} />
+            <Text style={styles.addressText}>{patient.address}</Text>
+          </View>
         )}
       </View>
 
-      {/* Create Visit Button */}
-      <TouchableOpacity
-        style={styles.createVisitButton}
-        onPress={() =>
-          navigation.navigate('CreateVisit', {patientId: patient.patientId})
-        }>
-        <Icon name="note-plus" size={20} color="#fff" />
-        <Text style={styles.createVisitText}>Create New Visit</Text>
-      </TouchableOpacity>
+      {/* Action Buttons */}
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() =>
+            navigation.navigate('CreateVisit', {patient})
+          }>
+          <Icon name="plus-circle" size={24} color="#fff" />
+          <Text style={styles.actionButtonText}>New Visit</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Visit History */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Visit History</Text>
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} />
+        ) : visits.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Icon name="file-document-outline" size={48} color={colors.textSecondary} />
+            <Text style={styles.emptyText}>No visits yet</Text>
+          </View>
+        ) : (
+          visits.map(visit => (
+            <VisitCard
+              key={visit.id}
+              visit={visit}
+              onPress={() =>
+                navigation.navigate('VisitDetail', {visitId: visit.id})
+              }
+            />
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 };
 
-const InfoCard = ({icon, label, value}) => (
-  <View style={styles.infoCard}>
-    <Icon name={icon} size={24} color={colors.primary} />
-    <Text style={styles.infoLabel}>{label}</Text>
-    <Text style={styles.infoValue}>{value}</Text>
+const InfoItem = ({icon, label, value}) => (
+  <View style={styles.infoItem}>
+    <Icon name={icon} size={20} color={colors.primary} />
+    <View style={styles.infoItemText}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
   </View>
 );
 
-const InfoRow = ({icon, label, value}) => (
-  <View style={styles.infoRow}>
-    <Icon name={icon} size={20} color={colors.textSecondary} />
-    <View style={styles.infoRowContent}>
-      <Text style={styles.infoRowLabel}>{label}</Text>
-      <Text style={styles.infoRowValue}>{value}</Text>
+const VisitCard = ({visit, onPress}) => (
+  <TouchableOpacity style={styles.visitCard} onPress={onPress}>
+    <View style={styles.visitHeader}>
+      <View>
+        <Text style={styles.visitDate}>
+          {format(new Date(visit.visitDate), 'dd MMM yyyy')}
+        </Text>
+        <Text style={styles.visitTime}>
+          {format(new Date(visit.visitDate), 'hh:mm a')}
+        </Text>
+      </View>
+      <Icon name="chevron-right" size={24} color={colors.textSecondary} />
     </View>
-  </View>
+    <Text style={styles.complaint} numberOfLines={2}>
+      {visit.chiefComplaint}
+    </Text>
+    {visit.medicines && visit.medicines.length > 0 && (
+      <View style={styles.medicineTag}>
+        <Icon name="pill" size={14} color={colors.primary} />
+        <Text style={styles.medicineCount}>
+          {visit.medicines.length} medicines prescribed
+        </Text>
+      </View>
+    )}
+  </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
@@ -168,147 +150,133 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  infoCard: {
+    backgroundColor: '#fff',
+    padding: 20,
     alignItems: 'center',
-  },
-  header: {
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    paddingVertical: 30,
   },
   avatarLarge: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
-  avatarTextLarge: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: colors.primary,
-  },
   patientName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.text,
+    marginBottom: 20,
   },
-  patientId: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.8,
-    marginTop: 4,
+  infoGrid: {
+    width: '100%',
   },
-  section: {
+  infoItem: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 10,
-  },
-  infoCard: {
-    width: '48%',
-    backgroundColor: '#fff',
-    padding: 16,
-    margin: '1%',
-    borderRadius: 8,
     alignItems: 'center',
-    elevation: 2,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  infoItemText: {
+    marginLeft: 12,
+    flex: 1,
   },
   infoLabel: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 8,
   },
   infoValue: {
     fontSize: 16,
-    fontWeight: '600',
     color: colors.text,
-    marginTop: 4,
+    fontWeight: '500',
   },
-  card: {
-    backgroundColor: '#fff',
-    margin: 16,
-    padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-  },
-  cardHeader: {
+  addressContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  cardTitle: {
+  addressText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginLeft: 8,
+    flex: 1,
+  },
+  actionsContainer: {
+    padding: 20,
+  },
+  actionButton: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 8,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  section: {
+    padding: 20,
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.text,
+    marginBottom: 16,
   },
-  visitCount: {
-    fontSize: 14,
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
     color: colors.textSecondary,
+    marginTop: 12,
   },
-  infoRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  infoRowContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  infoRowLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  infoRowValue: {
-    fontSize: 14,
-    color: colors.text,
-    marginTop: 2,
-  },
-  visitItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  visitCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    elevation: 2,
   },
   visitHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   visitDate: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
-  visitComplaint: {
+  visitTime: {
     fontSize: 14,
     color: colors.textSecondary,
   },
-  emptyText: {
+  complaint: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
-    paddingVertical: 20,
+    marginBottom: 8,
   },
-  createVisitButton: {
+  medicineTag: {
     flexDirection: 'row',
-    backgroundColor: colors.primary,
-    margin: 16,
-    paddingVertical: 16,
-    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  createVisitText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+  medicineCount: {
+    fontSize: 12,
+    color: colors.primary,
+    marginLeft: 4,
   },
 });
 

@@ -3,13 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
 } from 'react-native';
 import {Picker} from '@react-native-picker/picker';
 import {Formik} from 'formik';
@@ -19,7 +17,7 @@ import {useAuth} from '../../context/AuthContext';
 import api from '../../config/api';
 
 const PatientSchema = Yup.object().shape({
-  fullName: Yup.string().min(2).required('Full name is required'),
+  fullName: Yup.string().min(2).required('Name is required'),
   gender: Yup.string().required('Gender is required'),
   age: Yup.number().min(0).max(150).required('Age is required'),
   mobileNumber: Yup.string()
@@ -27,21 +25,18 @@ const PatientSchema = Yup.object().shape({
     .required('Mobile number is required'),
   email: Yup.string().email('Invalid email'),
   address: Yup.string(),
-  bloodGroup: Yup.string(),
-  emergencyContact: Yup.string(),
 });
 
 const AddPatientScreen = ({navigation}) => {
   const {user} = useAuth();
   const [loading, setLoading] = useState(false);
 
-  const handleAddPatient = async values => {
+  const handleSubmit = async values => {
     setLoading(true);
     try {
       const patientData = {
         ...values,
         mobileNumber: `+91${values.mobileNumber}`,
-        age: parseInt(values.age, 10),
       };
 
       const response = await api.post(
@@ -68,36 +63,29 @@ const AddPatientScreen = ({navigation}) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Add New Patient</Text>
+        <Text style={styles.subtitle}>
+          Enter patient details to create a new record
+        </Text>
+
         <Formik
           initialValues={{
             fullName: '',
-            gender: 'Male',
+            gender: '',
             age: '',
             mobileNumber: '',
             email: '',
             address: '',
-            bloodGroup: '',
-            emergencyContact: '',
           }}
           validationSchema={PatientSchema}
-          onSubmit={handleAddPatient}>
-          {({
-            handleChange,
-            handleBlur,
-            handleSubmit,
-            values,
-            errors,
-            touched,
-            setFieldValue,
-          }) => (
+          onSubmit={handleSubmit}>
+          {({handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue}) => (
             <View>
               <InputField
                 label="Full Name *"
-                placeholder="Enter patient's full name"
+                placeholder="Enter patient name"
                 value={values.fullName}
                 onChangeText={handleChange('fullName')}
                 onBlur={handleBlur('fullName')}
@@ -110,11 +98,15 @@ const AddPatientScreen = ({navigation}) => {
                   <Picker
                     selectedValue={values.gender}
                     onValueChange={value => setFieldValue('gender', value)}>
+                    <Picker.Item label="Select Gender" value="" />
                     <Picker.Item label="Male" value="Male" />
                     <Picker.Item label="Female" value="Female" />
                     <Picker.Item label="Other" value="Other" />
                   </Picker>
                 </View>
+                {touched.gender && errors.gender && (
+                  <Text style={styles.errorText}>{errors.gender}</Text>
+                )}
               </View>
 
               <InputField
@@ -149,31 +141,14 @@ const AddPatientScreen = ({navigation}) => {
               />
 
               <InputField
-                label="Blood Group (Optional)"
-                placeholder="e.g., A+, B-, O+"
-                value={values.bloodGroup}
-                onChangeText={handleChange('bloodGroup')}
-                onBlur={handleBlur('bloodGroup')}
-              />
-
-              <InputField
                 label="Address (Optional)"
-                placeholder="Full address"
+                placeholder="Enter address"
                 multiline
                 numberOfLines={3}
                 value={values.address}
                 onChangeText={handleChange('address')}
                 onBlur={handleBlur('address')}
-              />
-
-              <InputField
-                label="Emergency Contact (Optional)"
-                placeholder="10 digit number"
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={values.emergencyContact}
-                onChangeText={handleChange('emergencyContact')}
-                onBlur={handleBlur('emergencyContact')}
+                error={touched.address && errors.address}
               />
 
               <TouchableOpacity
@@ -189,18 +164,15 @@ const AddPatientScreen = ({navigation}) => {
             </View>
           )}
         </Formik>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+    </ScrollView>
   );
 };
 
-const InputField = ({label, error, multiline, ...props}) => (
+const InputField = ({label, error, ...props}) => (
   <View style={styles.inputContainer}>
     <Text style={styles.label}>{label}</Text>
-    <TextInput
-      style={[styles.input, multiline && styles.textArea]}
-      {...props}
-    />
+    <TextInput style={styles.input} {...props} />
     {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
 );
@@ -210,9 +182,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
+  content: {
     padding: 20,
-    paddingBottom: 40,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 24,
   },
   inputContainer: {
     marginBottom: 20,
@@ -230,12 +212,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    color: colors.text,
     backgroundColor: '#fff',
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
   },
   pickerContainer: {
     borderWidth: 1,

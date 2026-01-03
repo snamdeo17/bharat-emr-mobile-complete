@@ -18,33 +18,24 @@ const PatientListScreen = ({navigation}) => {
   const {user} = useAuth();
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchPatients();
   }, []);
 
   useEffect(() => {
-    if (searchQuery) {
-      const filtered = patients.filter(
-        patient =>
-          patient.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          patient.mobileNumber.includes(searchQuery),
-      );
-      setFilteredPatients(filtered);
-    } else {
-      setFilteredPatients(patients);
-    }
+    filterPatients();
   }, [searchQuery, patients]);
 
   const fetchPatients = async () => {
     try {
       const response = await api.get(`/doctors/${user.userId}/patients`);
-      const patientList = response.data.data || [];
-      setPatients(patientList);
-      setFilteredPatients(patientList);
+      const data = response.data.data || [];
+      setPatients(data);
+      setFilteredPatients(data);
     } catch (error) {
       console.error('Error fetching patients:', error);
     } finally {
@@ -53,28 +44,37 @@ const PatientListScreen = ({navigation}) => {
     }
   };
 
+  const filterPatients = () => {
+    if (searchQuery.trim() === '') {
+      setFilteredPatients(patients);
+    } else {
+      const filtered = patients.filter(
+        p =>
+          p.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.mobileNumber.includes(searchQuery),
+      );
+      setFilteredPatients(filtered);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchPatients();
   };
 
-  const renderPatientCard = ({item}) => (
+  const renderPatientItem = ({item}) => (
     <TouchableOpacity
       style={styles.patientCard}
-      onPress={() =>
-        navigation.navigate('PatientDetail', {patientId: item.patientId})
-      }>
-      <View style={styles.avatarContainer}>
-        <Text style={styles.avatarText}>
-          {item.fullName.charAt(0).toUpperCase()}
-        </Text>
+      onPress={() => navigation.navigate('PatientDetail', {patient: item})}>
+      <View style={styles.patientAvatar}>
+        <Icon name="account" size={32} color={colors.primary} />
       </View>
       <View style={styles.patientInfo}>
         <Text style={styles.patientName}>{item.fullName}</Text>
         <Text style={styles.patientDetails}>
-          {item.gender} • {item.age} years
+          {item.gender}, {item.age} years
         </Text>
-        <Text style={styles.patientPhone}>{item.mobileNumber}</Text>
+        <Text style={styles.patientMobile}>{item.mobileNumber}</Text>
       </View>
       <Icon name="chevron-right" size={24} color={colors.textSecondary} />
     </TouchableOpacity>
@@ -92,15 +92,10 @@ const PatientListScreen = ({navigation}) => {
     <View style={styles.container}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Icon
-          name="magnify"
-          size={20}
-          color={colors.textSecondary}
-          style={styles.searchIcon}
-        />
+        <Icon name="magnify" size={20} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search patients..."
+          placeholder="Search by name or mobile"
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -109,28 +104,28 @@ const PatientListScreen = ({navigation}) => {
       {/* Patient List */}
       <FlatList
         data={filteredPatients}
-        renderItem={renderPatientCard}
+        renderItem={renderPatientItem}
         keyExtractor={item => item.patientId}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        ListEmptyComponent=(
+        ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Icon name="account-group" size={64} color={colors.textSecondary} />
+            <Icon name="account-off" size={64} color={colors.textSecondary} />
             <Text style={styles.emptyText}>No patients found</Text>
             <Text style={styles.emptySubtext}>
-              Add your first patient to get started
+              {searchQuery ? 'Try a different search' : 'Add your first patient'}
             </Text>
           </View>
-        )
+        }
       />
 
-      {/* Add Patient Button */}
+      {/* Add Patient FAB */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('AddPatient')}>
-        <Icon name="plus" size={28} color="#fff" />
+        <Icon name="plus" size={24} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -155,16 +150,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     elevation: 2,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
+    paddingHorizontal: 8,
     fontSize: 16,
-    color: colors.text,
   },
-  listContainer: {
+  listContent: {
     padding: 16,
   },
   patientCard: {
@@ -176,19 +168,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     elevation: 2,
   },
-  avatarContainer: {
+  patientAvatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   patientInfo: {
     flex: 1,
@@ -204,7 +191,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 2,
   },
-  patientPhone: {
+  patientMobile: {
     fontSize: 14,
     color: colors.textSecondary,
   },
@@ -226,8 +213,8 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
+    right: 20,
+    bottom: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
