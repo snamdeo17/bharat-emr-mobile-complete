@@ -6,8 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  RefreshControl,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors} from '../../config/theme';
@@ -27,37 +27,30 @@ const PatientListScreen = ({navigation}) => {
   }, []);
 
   useEffect(() => {
-    filterPatients();
+    if (searchQuery) {
+      const filtered = patients.filter(
+        patient =>
+          patient.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          patient.mobileNumber.includes(searchQuery),
+      );
+      setFilteredPatients(filtered);
+    } else {
+      setFilteredPatients(patients);
+    }
   }, [searchQuery, patients]);
 
   const fetchPatients = async () => {
     try {
       const response = await api.get(`/doctors/${user.userId}/patients`);
-      const patientsData = response.data.data || [];
-      setPatients(patientsData);
-      setFilteredPatients(patientsData);
+      const patientList = response.data.data || [];
+      setPatients(patientList);
+      setFilteredPatients(patientList);
     } catch (error) {
       console.error('Error fetching patients:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  const filterPatients = () => {
-    if (!searchQuery.trim()) {
-      setFilteredPatients(patients);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = patients.filter(
-      patient =>
-        patient.fullName?.toLowerCase().includes(query) ||
-        patient.mobileNumber?.includes(query) ||
-        patient.patientId?.toLowerCase().includes(query),
-    );
-    setFilteredPatients(filtered);
   };
 
   const onRefresh = () => {
@@ -68,26 +61,22 @@ const PatientListScreen = ({navigation}) => {
   const renderPatientCard = ({item}) => (
     <TouchableOpacity
       style={styles.patientCard}
-      onPress={() => navigation.navigate('PatientDetail', {patient: item})}>
-      <View style={styles.patientHeader}>
-        <View style={styles.avatar}>
-          <Icon name="account" size={32} color="#fff" />
-        </View>
-        <View style={styles.patientInfo}>
-          <Text style={styles.patientName}>{item.fullName}</Text>
-          <Text style={styles.patientId}>ID: {item.patientId}</Text>
-          <Text style={styles.patientDetails}>
-            {item.gender} | {item.age} years
-          </Text>
-        </View>
-        <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+      onPress={() =>
+        navigation.navigate('PatientDetail', {patientId: item.patientId})
+      }>
+      <View style={styles.avatarContainer}>
+        <Text style={styles.avatarText}>
+          {item.fullName.charAt(0).toUpperCase()}
+        </Text>
       </View>
-      <View style={styles.patientFooter}>
-        <View style={styles.infoItem}>
-          <Icon name="phone" size={16} color={colors.textSecondary} />
-          <Text style={styles.infoText}>{item.mobileNumber}</Text>
-        </View>
+      <View style={styles.patientInfo}>
+        <Text style={styles.patientName}>{item.fullName}</Text>
+        <Text style={styles.patientDetails}>
+          {item.gender} • {item.age} years
+        </Text>
+        <Text style={styles.patientPhone}>{item.mobileNumber}</Text>
       </View>
+      <Icon name="chevron-right" size={24} color={colors.textSecondary} />
     </TouchableOpacity>
   );
 
@@ -103,49 +92,45 @@ const PatientListScreen = ({navigation}) => {
     <View style={styles.container}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Icon name="magnify" size={20} color={colors.textSecondary} />
+        <Icon
+          name="magnify"
+          size={20}
+          color={colors.textSecondary}
+          style={styles.searchIcon}
+        />
         <TextInput
           style={styles.searchInput}
           placeholder="Search patients..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Patient List */}
       <FlatList
         data={filteredPatients}
         renderItem={renderPatientCard}
-        keyExtractor={item => item.id?.toString() || item.patientId}
+        keyExtractor={item => item.patientId}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        ListEmptyComponent={
+        ListEmptyComponent=(
           <View style={styles.emptyContainer}>
-            <Icon name="account-off" size={64} color={colors.textSecondary} />
-            <Text style={styles.emptyText}>
-              {searchQuery ? 'No patients found' : 'No patients yet'}
-            </Text>
+            <Icon name="account-group" size={64} color={colors.textSecondary} />
+            <Text style={styles.emptyText}>No patients found</Text>
             <Text style={styles.emptySubtext}>
-              {searchQuery
-                ? 'Try a different search'
-                : 'Add your first patient'}
+              Add your first patient to get started
             </Text>
           </View>
-        }
+        )
       />
 
-      {/* Add Patient FAB */}
+      {/* Add Patient Button */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('AddPatient')}>
-        <Icon name="plus" size={24} color="#fff" />
+        <Icon name="plus" size={28} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -170,73 +155,58 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     elevation: 2,
   },
+  searchIcon: {
+    marginRight: 8,
+  },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 8,
     fontSize: 16,
     color: colors.text,
   },
   listContainer: {
     padding: 16,
-    paddingTop: 0,
   },
   patientCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  patientHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    elevation: 2,
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   patientInfo: {
     flex: 1,
-    marginLeft: 12,
   },
   patientName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-  },
-  patientId: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
+    marginBottom: 4,
   },
   patientDetails: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 4,
+    marginBottom: 2,
   },
-  patientFooter: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  infoText: {
+  patientPhone: {
     fontSize: 14,
-    color: colors.text,
-    marginLeft: 8,
+    color: colors.textSecondary,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -256,8 +226,8 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
+    right: 16,
+    bottom: 16,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -265,10 +235,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
   },
 });
 

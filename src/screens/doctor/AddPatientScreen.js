@@ -5,11 +5,11 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import {Picker} from '@react-native-picker/picker';
 import {Formik} from 'formik';
@@ -20,18 +20,15 @@ import api from '../../config/api';
 
 const PatientSchema = Yup.object().shape({
   fullName: Yup.string().min(2).required('Full name is required'),
+  gender: Yup.string().required('Gender is required'),
+  age: Yup.number().min(0).max(150).required('Age is required'),
   mobileNumber: Yup.string()
     .matches(/^[0-9]{10}$/, 'Invalid mobile number')
     .required('Mobile number is required'),
   email: Yup.string().email('Invalid email'),
-  gender: Yup.string().required('Gender is required'),
-  age: Yup.number().min(0).max(150).required('Age is required'),
   address: Yup.string(),
   bloodGroup: Yup.string(),
-  allergies: Yup.string(),
-  chronicConditions: Yup.string(),
-  emergencyContactName: Yup.string(),
-  emergencyContactNumber: Yup.string().matches(/^[0-9]{10}$/, 'Invalid number'),
+  emergencyContact: Yup.string(),
 });
 
 const AddPatientScreen = ({navigation}) => {
@@ -44,9 +41,7 @@ const AddPatientScreen = ({navigation}) => {
       const patientData = {
         ...values,
         mobileNumber: `+91${values.mobileNumber}`,
-        emergencyContactNumber: values.emergencyContactNumber
-          ? `+91${values.emergencyContactNumber}`
-          : null,
+        age: parseInt(values.age, 10),
       };
 
       const response = await api.post(
@@ -76,20 +71,17 @@ const AddPatientScreen = ({navigation}) => {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <Formik
           initialValues={{
             fullName: '',
-            mobileNumber: '',
-            email: '',
             gender: 'Male',
             age: '',
+            mobileNumber: '',
+            email: '',
             address: '',
             bloodGroup: '',
-            allergies: '',
-            chronicConditions: '',
-            emergencyContactName: '',
-            emergencyContactNumber: '',
+            emergencyContact: '',
           }}
           validationSchema={PatientSchema}
           onSubmit={handleAddPatient}>
@@ -97,42 +89,19 @@ const AddPatientScreen = ({navigation}) => {
             handleChange,
             handleBlur,
             handleSubmit,
-            setFieldValue,
             values,
             errors,
             touched,
+            setFieldValue,
           }) => (
-            <View style={styles.formContainer}>
-              <Text style={styles.sectionTitle}>Basic Information</Text>
-
+            <View>
               <InputField
                 label="Full Name *"
-                placeholder="Enter patient name"
+                placeholder="Enter patient's full name"
                 value={values.fullName}
                 onChangeText={handleChange('fullName')}
                 onBlur={handleBlur('fullName')}
                 error={touched.fullName && errors.fullName}
-              />
-
-              <InputField
-                label="Mobile Number *"
-                placeholder="10 digit number"
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={values.mobileNumber}
-                onChangeText={handleChange('mobileNumber')}
-                onBlur={handleBlur('mobileNumber')}
-                error={touched.mobileNumber && errors.mobileNumber}
-              />
-
-              <InputField
-                label="Email"
-                placeholder="email@example.com"
-                keyboardType="email-address"
-                value={values.email}
-                onChangeText={handleChange('email')}
-                onBlur={handleBlur('email')}
-                error={touched.email && errors.email}
               />
 
               <View style={styles.inputContainer}>
@@ -159,16 +128,37 @@ const AddPatientScreen = ({navigation}) => {
               />
 
               <InputField
-                label="Blood Group"
-                placeholder="e.g., O+, A-, AB+"
+                label="Mobile Number *"
+                placeholder="10 digit number"
+                keyboardType="phone-pad"
+                maxLength={10}
+                value={values.mobileNumber}
+                onChangeText={handleChange('mobileNumber')}
+                onBlur={handleBlur('mobileNumber')}
+                error={touched.mobileNumber && errors.mobileNumber}
+              />
+
+              <InputField
+                label="Email (Optional)"
+                placeholder="patient@example.com"
+                keyboardType="email-address"
+                value={values.email}
+                onChangeText={handleChange('email')}
+                onBlur={handleBlur('email')}
+                error={touched.email && errors.email}
+              />
+
+              <InputField
+                label="Blood Group (Optional)"
+                placeholder="e.g., A+, B-, O+"
                 value={values.bloodGroup}
                 onChangeText={handleChange('bloodGroup')}
                 onBlur={handleBlur('bloodGroup')}
               />
 
               <InputField
-                label="Address"
-                placeholder="Enter full address"
+                label="Address (Optional)"
+                placeholder="Full address"
                 multiline
                 numberOfLines={3}
                 value={values.address}
@@ -176,53 +166,14 @@ const AddPatientScreen = ({navigation}) => {
                 onBlur={handleBlur('address')}
               />
 
-              <Text style={[styles.sectionTitle, {marginTop: 24}]}>
-                Medical Information
-              </Text>
-
               <InputField
-                label="Allergies"
-                placeholder="List any known allergies"
-                multiline
-                numberOfLines={2}
-                value={values.allergies}
-                onChangeText={handleChange('allergies')}
-                onBlur={handleBlur('allergies')}
-              />
-
-              <InputField
-                label="Chronic Conditions"
-                placeholder="List any chronic conditions"
-                multiline
-                numberOfLines={2}
-                value={values.chronicConditions}
-                onChangeText={handleChange('chronicConditions')}
-                onBlur={handleBlur('chronicConditions')}
-              />
-
-              <Text style={[styles.sectionTitle, {marginTop: 24}]}>
-                Emergency Contact
-              </Text>
-
-              <InputField
-                label="Contact Name"
-                placeholder="Emergency contact name"
-                value={values.emergencyContactName}
-                onChangeText={handleChange('emergencyContactName')}
-                onBlur={handleBlur('emergencyContactName')}
-              />
-
-              <InputField
-                label="Contact Number"
+                label="Emergency Contact (Optional)"
                 placeholder="10 digit number"
                 keyboardType="phone-pad"
                 maxLength={10}
-                value={values.emergencyContactNumber}
-                onChangeText={handleChange('emergencyContactNumber')}
-                onBlur={handleBlur('emergencyContactNumber')}
-                error={
-                  touched.emergencyContactNumber && errors.emergencyContactNumber
-                }
+                value={values.emergencyContact}
+                onChangeText={handleChange('emergencyContact')}
+                onBlur={handleBlur('emergencyContact')}
               />
 
               <TouchableOpacity
@@ -243,10 +194,13 @@ const AddPatientScreen = ({navigation}) => {
   );
 };
 
-const InputField = ({label, error, ...props}) => (
+const InputField = ({label, error, multiline, ...props}) => (
   <View style={styles.inputContainer}>
     <Text style={styles.label}>{label}</Text>
-    <TextInput style={styles.input} {...props} />
+    <TextInput
+      style={[styles.input, multiline && styles.textArea]}
+      {...props}
+    />
     {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
 );
@@ -256,20 +210,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollView: {
-    flex: 1,
-  },
-  formContainer: {
+  scrollContent: {
     padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 16,
+    paddingBottom: 40,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
@@ -287,6 +233,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     backgroundColor: '#fff',
   },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
   pickerContainer: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -303,8 +253,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 40,
+    marginTop: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
